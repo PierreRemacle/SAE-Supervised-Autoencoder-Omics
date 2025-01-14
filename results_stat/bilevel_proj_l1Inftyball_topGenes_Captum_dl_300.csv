@@ -1,0 +1,115 @@
+0;0;1
+topGenes;topGenes;Weights
+Exitus;Exitus;1.0
+Current ICU Situation;Current ICU Situation;0.6205471358912981
+Previous Resynchronization;Previous Resynchronization;0.48770912856232096
+Gender_D;Gender_D;0.3896886733489376
+New Resynchronization Date;New Resynchronization Date;0.3247349578480743
+Seroteca-1 Date;Seroteca-1 Date;0.30670025178586213
+Gender_H;Gender_H;0.28914598841951245
+HTN;HTN;0.2614252867087522
+Peritoneal Dialysis DP;Peritoneal Dialysis DP;0.19706892720270539
+New ICD;New ICD;0.18241549243406635
+Seroteca-1;Seroteca-1;0.17276889060422887
+New IVP Date;New IVP Date;0.17069919063510713
+EF;EF;0.16643150445641225
+Previous Dialysis Date;Previous Dialysis Date;0.16540977450222671
+New PCI Date;New PCI Date;0.15674842287116614
+New Dialysis Peritoneal;New Dialysis Peritoneal;0.15227874893434323
+Mechanical Assistance Destination;Mechanical Assistance Destination;0.12651814603407316
+New Diabetes Date;New Diabetes Date;0.12650891816695056
+Diabetes M;Diabetes M;0.12290542256454191
+Peripheral Vascular Disease;Peripheral Vascular Disease;0.11807874889117193
+Previous Resynchronization Date;Previous Resynchronization Date;0.1129443379911937
+New Dialysis Hemodialysis;New Dialysis Hemodialysis;0.11228148977277105
+Caregiver;Caregiver;0.10413705384746476
+New Dialysis;New Dialysis;0.10227108872534878
+Mechanical Assistance;Mechanical Assistance;0.09337915509001056
+Caregiver Type;Caregiver Type;0.09130242629227645
+Race_11;Race_11;0.08301086389781007
+New Coronary Surgery Date;New Coronary Surgery Date;0.07292274775015425
+OSA;OSA;0.07188726368700456
+New Resynchronization;New Resynchronization;0.07136268507404904
+Previous Coronary Intervention Date;Previous Coronary Intervention Date;0.06591824347171572
+Seroteca-2;Seroteca-2;0.06163291102080393
+Age;Age;0.06149895180063749
+Mechanical Assistance Destination Date;Mechanical Assistance Destination Date;0.04931221090738211
+Technique_4.0;Technique_4.0;0.04711582338531482
+New Other Surgery Date;New Other Surgery Date;0.04466736601487705
+New Valvulopathy;New Valvulopathy;0.04178536752759969
+Previous Structural Intervention Date;Previous Structural Intervention Date;0.04045886500148455
+New BE MCP;New BE MCP;0.028653502142861845
+New BE MCP Date;New BE MCP Date;0.028653502142861845
+Tricuspid;Tricuspid;0.026769113327705953
+Seroteca-3 Date;Seroteca-3 Date;0.025935429834590212
+Smoking;Smoking;0.02442427384240724
+Transplantation Date;Transplantation Date;0.02268373823433451
+New MI Date;New MI Date;0.02232517353786604
+Previous BE MCP;Previous BE MCP;0.02199911717372987
+Valvular Surgery;Valvular Surgery;0.021817817915941794
+Mechanical Assistance Bridge Date;Mechanical Assistance Bridge Date;0.017548990058511155
+Previous ICD Date;Previous ICD Date;0.017134980585862714
+New Dialysis Start Date;New Dialysis Start Date;0.016572846307552614
+Technique_11.0;Technique_11.0;0.015122693397477262
+Pulmonary;Pulmonary;0.011870463842248586
+Neoplasia Date;Neoplasia Date;0.011870463842248586
+Other Structural Intervention;Other Structural Intervention;0.011870463842248586
+Other Structural Intervention Date;Other Structural Intervention Date;0.011870463842248586
+Previous BE MCP Date;Previous BE MCP Date;0.011870463842248586
+Technique_36.0;Technique_36.0;0.011870463842248586
+Race_12;Race_12;0.008538590812141887
+Previous Surgery Date;Previous Surgery Date;0.007517780777823935
+Previous Surgery;Previous Surgery;0.0017506670582641594
+Valvular Percutaneous Intervention;Valvular Percutaneous Intervention;-0.000273311586495119
+Race_14;Race_14;-0.001086514425510498
+Previous Structural Intervention;Previous Structural Intervention;-0.005423469368688692
+Ex-Smoking;Ex-Smoking;-0.005568449920284179
+CardioMEMS Date;CardioMEMS Date;-0.027444540248772506
+Evolution Time;Evolution Time;-0.03929835615530576
+Other Surgery;Other Surgery;-0.04052450899922108
+Race_2;Race_2;-0.05443180865224249
+Race_32;Race_32;-0.054872837292843826
+Family Situation;Family Situation;-0.05555209735389022
+Percutaneous Intervention;Percutaneous Intervention;-0.056329734033442436
+New Diabetes;New Diabetes;-0.05754010911332285
+Race_31;Race_31;-0.060660497540692464
+Ex-Alcoholism;Ex-Alcoholism;-0.06303868348879861
+Ischemic C;Ischemic C;-0.06838333865959348
+Previous Coronary Intervention;Previous Coronary Intervention;-0.07275141162083115
+Seroteca-2 Date;Seroteca-2 Date;-0.07689062943011822
+Conventional Pacemaker;Conventional Pacemaker;-0.08359111326176177
+Technique_2.0;Technique_2.0;-0.08823469336984763
+Previous CT;Previous CT;-0.08852414350013324
+Previous Dialysis;Previous Dialysis;-0.0892774356091844
+Previous CT Date;Previous CT Date;-0.08996525573118004
+CardioMEMS;CardioMEMS;-0.09003697406688725
+Valvulopathy;Valvulopathy;-0.10266085818300814
+New ICD Date;New ICD Date;-0.10481042507225528
+New MI;New MI;-0.10823772102765414
+Coronary Surgery;Coronary Surgery;-0.11045365031218791
+New Conventional MCP Date;New Conventional MCP Date;-0.11214444110586327
+Race_13;Race_13;-0.11297494240138027
+Mitral;Mitral;-0.12653298617125863
+Exitus Date;Exitus Date;-0.12794459351137397
+Hypercholesterolemia;Hypercholesterolemia;-0.13070243064178574
+Height;Height;-0.1319310860724719
+COPD;COPD;-0.1331485574361337
+Transplantation;Transplantation;-0.13433599775854568
+Hemodialysis DP;Hemodialysis DP;-0.14355819864694644
+Neoplasia;Neoplasia;-0.14682632063999737
+Seroteca-3;Seroteca-3;-0.1589262669672685
+Previous MI;Previous MI;-0.15900168184623825
+Mechanical Assistance Bridge;Mechanical Assistance Bridge;-0.17506627875087705
+Previous Conventional MCP Date;Previous Conventional MCP Date;-0.20034365980232074
+New Valvular Surgery Date;New Valvular Surgery Date;-0.21434568000368684
+Procedure Centre;Procedure Centre;-0.2149195750907164
+Aortic;Aortic;-0.2361217465427607
+Alcoholism;Alcoholism;-0.2446788664466441
+First MI Date;First MI Date;-0.25177622951076223
+Technique_3.0;Technique_3.0;-0.25867219842223976
+Previous Admissions;Previous Admissions;-0.2702210899827131
+Schooling Level;Schooling Level;-0.2862368088718765
+Previous ICD;Previous ICD;-0.3111582289963761
+New Valvulopathy Date;New Valvulopathy Date;-0.3153328675149181
+Etiology;Etiology;-0.35269828231078315
+Previous MCP;Previous MCP;-0.5960821714045559

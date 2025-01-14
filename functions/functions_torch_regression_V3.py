@@ -2,9 +2,11 @@
 """
 Created on Wed Feb 28 10:23:43 2024
 
-@author: Nolwenn Peyratout 
+@author: Nolwenn Peyratout
 """
 
+from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import StandardScaler, scale as scale
 import time
 import numpy as np
 import pandas as pd
@@ -32,7 +34,8 @@ from matplotlib.colors import ListedColormap
 from sklearn.model_selection import train_test_split
 
 import functions.functions_network_pytorch as fnp
-
+import functions.functions_DeepSurv as fds  # DeepSurv
+import torchtuples as tt
 
 try:
     import captum
@@ -77,7 +80,8 @@ def proj_l1ball(w0, eta, device="cpu"):
                 (
                     (
                         torch.cumsum(
-                            torch.sort(torch.abs(w), dim=0, descending=True)[0],
+                            torch.sort(torch.abs(w), dim=0,
+                                       descending=True)[0],
                             dim=0,
                             dtype=torch.get_default_dtype(),
                         )
@@ -89,7 +93,8 @@ def proj_l1ball(w0, eta, device="cpu"):
                         device=device,
                         dtype=torch.get_default_dtype(),
                     ),
-                    torch.tensor([0.0], dtype=torch.get_default_dtype(), device=device),
+                    torch.tensor(
+                        [0.0], dtype=torch.get_default_dtype(), device=device),
                 )
             )
         ),
@@ -140,7 +145,7 @@ def proj_l2ball(w0, eta, device="cpu"):
     return torch.mul(eta / n, w)
 
 
-## fold in ["local","full",partial"]
+# fold in ["local","full",partial"]
 def proj_nuclear(w0, eta_star, fold="local", device="cpu"):
 
     w1 = torch.as_tensor(w0, dtype=torch.get_default_dtype(), device=device)
@@ -156,7 +161,7 @@ def proj_nuclear(w0, eta_star, fold="local", device="cpu"):
     if w.dim() == 1:
         v = proj_l1ball(w, eta_star, device=device)
     elif w.dim() == 2:
-        L, S0, R = torch.svd(w, some=True)  #'economy-size decomposition'
+        L, S0, R = torch.svd(w, some=True)  # 'economy-size decomposition'
         # norm_nuclear = S0.sum().item() # Note that the S will be a vector but not a diagonal matrix
         v_star = proj_l1ball(S0, eta_star, device=S0.device)
         v = torch.matmul(L, torch.matmul(v_star.diag(), R.t()))
@@ -238,7 +243,6 @@ def proj_l11ball_line(w2, eta, device="cpu"):
     return Q
 
 
-
 def bilevel_proj_l1Inftyball(w2, eta, device="cpu"):
 
     w = torch.as_tensor(w2, dtype=torch.get_default_dtype(), device=device)
@@ -265,20 +269,16 @@ def bilevel_proj_l1Inftyball(w2, eta, device="cpu"):
 
     if not torch.is_tensor(w2):
         Q = Q.data.numpy()
-    
 
     return Q
 
 
-
-
-
-from torch.multiprocessing import Pool
-
 def f1(i, w):
-     return torch.max(torch.abs(w[:, i])).data.item()
+    return torch.max(torch.abs(w[:, i])).data.item()
+
+
 def f2(i, w, PW):
-     return torch.clamp(torch.abs(w[:, i]), max=PW[i].data.item()) *torch.sign(w[:, i])
+    return torch.clamp(torch.abs(w[:, i]), max=PW[i].data.item()) * torch.sign(w[:, i])
 
 
 def proj_l1Inftyball_line(w2, C, device="cpu"):
@@ -331,10 +331,11 @@ def proj_l1Inftyball_line(w2, C, device="cpu"):
         Q = Q * torch.sign(w)
         Q = Q.clone().detach().requires_grad_(True)
 
-        #print("Theta = " + str(theta))
+        # print("Theta = " + str(theta))
     if not torch.is_tensor(w2):
         Q = Q.data.numpy()
     return Q
+
 
 def proj_l1Inftyball_line_unbounded(w2, C, device="cpu"):
     w = torch.as_tensor(w2, dtype=torch.get_default_dtype(), device=device)
@@ -344,13 +345,15 @@ def proj_l1Inftyball_line_unbounded(w2, C, device="cpu"):
     else:
         return torch.abs(w) * torch.sign(Q)
 
+
 def proj_l1Inftyball_unbounded(w2, C, device="cpu"):
     w = torch.as_tensor(w2, dtype=torch.get_default_dtype(), device=device)
     Q = proj_l1Inftyball(w2, C, device)
     if w.dim() == 1:
         return Q
     else:
-        return torch.abs(w)* torch.sign(Q)
+        return torch.abs(w) * torch.sign(Q)
+
 
 def proj_l12ball(V, eta, axis=1, threshold=0.001, device="cpu"):
 
@@ -368,7 +371,8 @@ def proj_l12ball(V, eta, axis=1, threshold=0.001, device="cpu"):
     Vshape = V.shape
     # m,d = Vshape
     lmbda = 0.0
-    p = np.ones(Vshape[0], dtype=int) * (Vshape[1] - 1)  # to change in case of tensor
+    # to change in case of tensor
+    p = np.ones(Vshape[0], dtype=int) * (Vshape[1] - 1)
     delta = np.zeros(Vshape[0])
     V_abs = np.abs(V)  # maybe transposed if change the value of axis
     sgn = np.sign(V)
@@ -393,9 +397,11 @@ def proj_l12ball(V, eta, axis=1, threshold=0.001, device="cpu"):
         lmbda = lmbda + test / (2 * sum2)
         lst_f.append(test)
         # update p
-        p = np.argmax(V_sum / (1 + lmbda * np.arange(1, Vshape[1] + 1)), axis=1)
+        p = np.argmax(
+            V_sum / (1 + lmbda * np.arange(1, Vshape[1] + 1)), axis=1)
 
-    delta = lmbda * (np.array(list(map(lambda x, y: y[x], p, V_sum))) / (1 + lmbda * p))
+    delta = lmbda * \
+        (np.array(list(map(lambda x, y: y[x], p, V_sum))) / (1 + lmbda * p))
     W = V_abs - delta.reshape((-1, 1))
     W[W < 0] = 0
     W = W * sgn
@@ -413,14 +419,14 @@ def proj_l1inf_numpy(Y, c, tol=1e-5, direction="row"):
 
         Author: Laurent Condat
         Version: 1.0, Sept. 1, 2017
-    
+
     This algorithm is new, to the author's knowledge. It is based
     on the same ideas as for projection onto the l1 ball, see
     L. Condat, "Fast projection onto the simplex and the l1 ball",
-    Mathematical Programming, vol. 158, no. 1, pp. 575-585, 2016. 
-    
+    Mathematical Programming, vol. 158, no. 1, pp. 575-585, 2016.
+
     The algorithm is exact and terminates in finite time*. Its
-    average complexity, for Y of size N x M, is O(NM.log(M)). 
+    average complexity, for Y of size N x M, is O(NM.log(M)).
     Its worst case complexity, never found in practice, is
     O(NM.log(M) + N^2.M).
 
@@ -505,10 +511,10 @@ def bilevel_proj_l11ball(w2, eta, device="cpu"):
 
 def proj_l1infball(w0, eta, AXIS=1, device="cpu", tol=1e-5):
     """See the documentation of proj_l1inf_numpy for details
-    Note: Due to 
-    1. numpy's C implementation and 
+    Note: Due to
+    1. numpy's C implementation and
     2. the non-parallelizable nature of the algorithm,
-    it is faster to do this projection on the cpu with numpy arrays 
+    it is faster to do this projection on the cpu with numpy arrays
     than on the gpu with torch tensors
     """
     w = w0.detach().cpu().numpy()
@@ -526,7 +532,8 @@ def full_fold_conv(M):
         row, col = init_shape[0:2]
         N = list(M2.reshape(-1).size())[0]
 
-        Q = torch.transpose(torch.transpose(M2, 0, 1).reshape(N).reshape(col, -1), 0, 1)
+        Q = torch.transpose(torch.transpose(
+            M2, 0, 1).reshape(N).reshape(col, -1), 0, 1)
     else:
         Q = M
 
@@ -570,7 +577,8 @@ def partial_fold_conv(M):
         Q = torch.cat(
             tuple(
                 [
-                    torch.cat(tuple([M2[i, j] for j in range(init_shape[1])]), 1)
+                    torch.cat(tuple([M2[i, j]
+                              for j in range(init_shape[1])]), 1)
                     for i in range(init_shape[0])
                 ]
             ),
@@ -595,7 +603,7 @@ def partial_unfold_conv(M, original_shape):
                 di = init_shape[2]
                 dj = init_shape[3]
                 Z[i, j] = M2[
-                    i * di : (i * di + init_shape[2]), j * dj : (j * dj + init_shape[3])
+                    i * di: (i * di + init_shape[2]), j * dj: (j * dj + init_shape[3])
                 ]
             # print('row: {}-{}, col: {}-{}'.format(i*di,(i*di+init_shape[2]),j*dj,(j*dj+init_shape[3])))
     else:
@@ -620,7 +628,8 @@ def sort_weighted_projection(y, eta, w, n=None, device="cpu"):
     elif w.is_cuda:
         y = y.cuda()
     if any(w < 0):
-        raise ValueError("sort_weighted_projection: The weight should be positive")
+        raise ValueError(
+            "sort_weighted_projection: The weight should be positive")
     y0 = y * torch.sign(y)
     w = w.type(dtype=y.dtype)
     y0 = y0.type(dtype=y.dtype)
@@ -650,12 +659,12 @@ def sort_weighted_projection(y, eta, w, n=None, device="cpu"):
 
 def sparsity(M, tol=1.0e-3, device="cpu"):
     """
-    Return the sparsity for the input matrix M                                   
-    ----- INPUT                                                                 
-        M               : (Tensor) the matrix                                   
-        tol             : (Scalar,optional) the threshold to select zeros       
-    ----- OUTPUT                                                                
-        sparsity         : (Scalar) the spacity of the matrix                      
+    Return the sparsity for the input matrix M
+    ----- INPUT
+        M               : (Tensor) the matrix
+        tol             : (Scalar,optional) the threshold to select zeros
+    ----- OUTPUT
+        sparsity         : (Scalar) the spacity of the matrix
     """
     if type(M) is not torch.Tensor:
         M = torch.as_tensor(M, device=device)
@@ -665,7 +674,7 @@ def sparsity(M, tol=1.0e-3, device="cpu"):
 
 
 class LoadDataset(torch.utils.data.Dataset):
-    """Load data in Pytorch 
+    """Load data in Pytorch
 
     Attributes:
         X: numpy array - input data.
@@ -683,7 +692,7 @@ class LoadDataset(torch.utils.data.Dataset):
         return len(self.X)
 
     def __getitem__(self, i):
-        return self.X[i], self.Y[i], self.ind[i]
+        return self.X[i], self.Y.T[i], self.ind[i]
 
 
 def CrossVal(X, Y, patient_name, BATCH_SIZE=32, nfold=0, seed=1):
@@ -691,7 +700,8 @@ def CrossVal(X, Y, patient_name, BATCH_SIZE=32, nfold=0, seed=1):
     i = 0
     for train_index, test_index in kf.split(X):
         X_train, X_test = X[train_index], X[test_index]
-        y_train, y_test = np.array(Y)[train_index.astype(int)], np.array(Y)[test_index.astype(int)]
+        y_train, y_test = np.array(Y)[train_index.astype(int)], np.array(Y)[
+            test_index.astype(int)]
         ind_train, ind_test = patient_name[train_index], patient_name[test_index]
         dtrain = LoadDataset(X_train, y_train, ind_train)
         # train_set, _ = torch.utils.data.random_split(dtrain, [1])
@@ -706,14 +716,41 @@ def CrossVal(X, Y, patient_name, BATCH_SIZE=32, nfold=0, seed=1):
             #     print(batch[0])
             return train_dl, test_dl, len(dtrain), len(dtest), y_test
         i += 1
-        
+
+
+def CrossValSurv(X, Y, patient_name, BATCH_SIZE=32, nfold=0, seed=1):
+    kf = KFold(n_splits=4, shuffle=True, random_state=seed)
+    i = 0
+    for train_index, test_index in kf.split(X):
+        X_train, X_test = X[train_index], X[test_index]
+        # Split Y into time and event components
+        # Time and event for training
+        y_train_time, y_train_event = Y[1][train_index], Y[0][train_index]
+        # Time and event for testing
+        y_test_time, y_test_event = Y[1][test_index], Y[0][test_index]
+
+        # Get the patient names for train/test sets
+        ind_train, ind_test = patient_name[train_index], patient_name[test_index]
+
+        # Assuming LoadDataset takes both time and event as inputs
+        dtrain = LoadDataset(X_train, (y_train_event, y_train_time), ind_train)
+        train_dl = torch.utils.data.DataLoader(
+            dtrain, batch_size=BATCH_SIZE, shuffle=True)
+
+        dtest = LoadDataset(X_test, (y_test_event, y_test_time), ind_test)
+        test_dl = torch.utils.data.DataLoader(dtest, batch_size=1)
+
+        if i == nfold:
+            return train_dl, test_dl, len(dtrain), len(dtest), (y_test_event, y_test_time)
+
+        i += 1
+
+
 def TestSet(X, Y, patient_name, BATCH_SIZE=32):
     dtest = LoadDataset(X, Y, patient_name)
     test_dl = torch.utils.data.DataLoader(dtest, batch_size=1)
     return test_dl, len(dtest)
-    
-    
-    
+
 
 def Activation(activation=None):
     if activation == 'tanh':
@@ -727,21 +764,22 @@ def Activation(activation=None):
     elif activation == 'silu':
         return torch.nn.SiLU()
     else:
-        raise NotImplementedError("hidden activation '{}' is not implemented".format(activation))
+        raise NotImplementedError(
+            "hidden activation '{}' is not implemented".format(activation))
 
 
 class FairAutoEncoder(torch.nn.Module):
-    """AutoEncoder Net structure, return encode, decode 
+    """AutoEncoder Net structure, return encode, decode
 
     Attributes:
         n_inputs: int - number of features.
         n_clusters: int - number of classes.
-        
+
     Returns:
         encode: tensor - encoded data
     """
 
-    def __init__(self, n_inputs, n_clusters, n_hidden=512,  activation= "relu", norm=False):
+    def __init__(self, n_inputs, n_clusters, n_hidden=512,  activation="relu", norm=False):
         super(FairAutoEncoder, self).__init__()
         n_inputs = n_inputs
         hidden1_size = n_hidden
@@ -750,7 +788,7 @@ class FairAutoEncoder(torch.nn.Module):
         hidden4_size = n_hidden
         #        code_size = 2
         code_size = n_clusters
-        if norm: 
+        if norm:
             self.encoder = torch.nn.Sequential(
                 torch.nn.Linear(n_inputs, hidden1_size),
                 Activation(activation),
@@ -766,7 +804,7 @@ class FairAutoEncoder(torch.nn.Module):
                 torch.nn.LayerNorm(hidden4_size),
                 torch.nn.Linear(hidden4_size, code_size),
             )
-        else: 
+        else:
             self.encoder = torch.nn.Sequential(
                 torch.nn.Linear(n_inputs, hidden1_size),
                 Activation(activation),
@@ -778,33 +816,28 @@ class FairAutoEncoder(torch.nn.Module):
                 Activation(activation),
                 torch.nn.Linear(hidden4_size, code_size),
             )
-        
-            
 
     def forward(self, x):
         encode = self.encoder(x)
         return encode
-    
-    
-
 
 
 class LeNet_300_100(nn.Module):
-    def __init__(self, n_inputs, n_outputs=2, activation= "relu", norm = False):
+    def __init__(self, n_inputs, n_outputs=2, activation="relu", norm=False):
 
         super(LeNet_300_100, self).__init__()
-        
-        if norm: 
+
+        if norm:
             self.encoder = torch.nn.Sequential(
                 torch.nn.Linear(n_inputs, 300),
                 Activation(activation),
-                torch.nn.LayerNorm(300), 
+                torch.nn.LayerNorm(300),
                 torch.nn.Linear(300, 100),
                 Activation(activation),
                 torch.nn.LayerNorm(100),
                 torch.nn.Linear(100, n_outputs),
             )
-        else: 
+        else:
             self.encoder = torch.nn.Sequential(
                 torch.nn.Linear(n_inputs, 300),
                 Activation(activation),
@@ -816,23 +849,24 @@ class LeNet_300_100(nn.Module):
     def forward(self, x):
         encode = self.encoder(x)
         return encode
-    
+
+
 class DNN(nn.Module):
 
     def __init__(
-    self, 
-    in_features,
-    out1,
-    dropout, ratio = False):
-        
+            self,
+            in_features,
+            out1,
+            dropout, ratio=False):
+
         super(DNN, self).__init__()
-        
+
         if ratio:
             out2 = int((out1*(out1-1))/2) // 2
-            
+
             ratio_size = int((out1 * (out1 - 1)) / 2)
-            #self.norm = nn.LayerNorm(in_features)
-            self.encoder= nn.Sequential(
+            # self.norm = nn.LayerNorm(in_features)
+            self.encoder = nn.Sequential(
                 nn.Linear(in_features, out1, bias=False),
                 nn.ReLU(),
                 nn.Lambda(self.ratio),
@@ -846,10 +880,10 @@ class DNN(nn.Module):
                 nn.LayerNorm(normalized_shape=out2),
                 nn.Dropout(p=dropout),
                 nn.Linear(out2, 1)
-                )
-        else: 
+            )
+        else:
             out2 = int((out1*(out1-1))/2) // 2
-            self.encoder= nn.Sequential(
+            self.encoder = nn.Sequential(
                 nn.Linear(in_features, out1, bias=False),
                 nn.ReLU(),
                 nn.Linear(out1, out2, bias=False),
@@ -861,34 +895,34 @@ class DNN(nn.Module):
                 nn.LayerNorm(normalized_shape=out2),
                 nn.Dropout(p=dropout),
                 nn.Linear(out2, 1)
-                )
-    
+            )
+
     def ratio(self, x):
         for i in range(x.shape[1]-1):
-            m = (x[:,i+1:]+1)/(x[:,i].view(-1,1)+1)
+            m = (x[:, i+1:]+1)/(x[:, i].view(-1, 1)+1)
             if i == 0:
                 new = m
             else:
                 new = torch.cat((new, m), 1)
-        return(new)
+        return (new)
 
     def forward(self, x):
         encode = self.encoder(x)
-        return encode    
+        return encode
 
 
 class netBio(nn.Module):
     def __init__(self, n_inputs, n_outputs=2, n_hidden=300, activation="relu", norm=False):
         super(netBio, self).__init__()
-        
-        if norm: 
+
+        if norm:
             self.encoder = torch.nn.Sequential(
                 torch.nn.Linear(n_inputs, n_hidden),
                 Activation(activation),
-                torch.nn.LayerNorm(n_hidden), 
+                torch.nn.LayerNorm(n_hidden),
                 torch.nn.Linear(n_hidden, n_outputs),
             )
-        else: 
+        else:
             self.encoder = torch.nn.Sequential(
                 torch.nn.Linear(n_inputs, n_hidden),
                 Activation(activation),
@@ -899,69 +933,67 @@ class netBio(nn.Module):
         encode = self.encoder(x)
         return encode
 
-   
+
 # define the model
 class dnn(nn.Module):
 
     def __init__(
-        self, 
-        in_features,
-        out1,
-        dropout):
-        
+            self,
+            in_features,
+            out1,
+            dropout):
+
         super(dnn, self).__init__()
-        
-        #self.norm = nn.LayerNorm(in_features)
-        out2 = int((out1*(out1-1))/2) //2
-        self.linear1 = nn.Sequential( 
+
+        # self.norm = nn.LayerNorm(in_features)
+        out2 = int((out1*(out1-1))/2) // 2
+        self.linear1 = nn.Sequential(
             nn.Linear(
-                in_features = in_features, 
-                out_features = out1,
-                bias = False
-                )
+                in_features=in_features,
+                out_features=out1,
+                bias=False
             )
-        
+        )
+
         self.norm = nn.LayerNorm(int((out1*(out1-1))/2))
 
-        self.linear2 = nn.Sequential( 
+        self.linear2 = nn.Sequential(
             nn.Linear(
-                in_features = int((out1*(out1-1))/2), 
-                out_features = out2,
-                bias = False
-                ),
+                in_features=int((out1*(out1-1))/2),
+                out_features=out2,
+                bias=False
+            ),
             nn.ReLU(),
             nn.LayerNorm(normalized_shape=out2),
-            nn.Dropout(p=dropout) #0.1
-            )
-        
-        
-        self.linear3 = nn.Sequential( 
+            nn.Dropout(p=dropout)  # 0.1
+        )
+
+        self.linear3 = nn.Sequential(
             nn.Linear(
-                in_features = out2, 
-                out_features = out2,
-                bias = False
-                ),
+                in_features=out2,
+                out_features=out2,
+                bias=False
+            ),
             nn.ReLU(),
             nn.LayerNorm(normalized_shape=out2),
-            nn.Dropout(p=dropout) #0.1
-            )
-        
-        
-        self.output = nn.Sequential( 
+            nn.Dropout(p=dropout)  # 0.1
+        )
+
+        self.output = nn.Sequential(
             nn.Linear(
-                in_features = out2, 
-                out_features = 1
-                )
+                in_features=out2,
+                out_features=1
             )
-        
+        )
+
     def ratio(self, x):
         for i in range(x.shape[1]-1):
-            m = (x[:,i+1:]+1)/(x[:,i].view(-1,1)+1)
+            m = (x[:, i+1:]+1)/(x[:, i].view(-1, 1)+1)
             if i == 0:
                 new = m
             else:
                 new = torch.cat((new, m), 1)
-        return(new)
+        return (new)
 
     def forward(self, x):
         x = self.linear1(x)
@@ -973,7 +1005,7 @@ class dnn(nn.Module):
         return x
 
 
-def plotGraph(y_data, x_data, y_label, x_label, title):    
+def plotGraph(y_data, x_data, y_label, x_label, title):
     # Plot the data
     plt.plot(x_data, y_data)
     # Customize the plot (optional)
@@ -982,7 +1014,7 @@ def plotGraph(y_data, x_data, y_label, x_label, title):
     plt.title(title)
     plt.grid(True)
     plt.show()
-    
+
 
 def RunFCNNNoProj(
     net: nn.Module,
@@ -993,7 +1025,7 @@ def RunFCNNNoProj(
     test_dl,
     test_len: int,
     optimizer,
-    outputPath: str,   
+    outputPath: str,
     seed,
     SEEDS,
     fold_idx,
@@ -1043,8 +1075,8 @@ def RunFCNNNoProj(
     (
         epoch_val_loss
     ) = ([])
-    best_test = np.inf 
-    
+    best_test = np.inf
+
     for epoch_idx in range(N_EPOCHS):
         t1 = time.perf_counter()
         running_loss = 0
@@ -1052,19 +1084,18 @@ def RunFCNNNoProj(
         for i, batch in enumerate(train_dl):
             x = batch[0]
             labels = batch[1]
-            #print(labels)
+            # print(labels)
 
             if torch.cuda.is_available():
                 x = x.cuda()
                 labels = labels.cuda()
 
             encoder_out = net(x)
-           
+
             loss = criterion_regression(encoder_out.flatten(), labels)
             optimizer.zero_grad()
             loss.backward()
 
-        
             optimizer.step()
             with torch.no_grad():
                 running_loss += loss.item()
@@ -1072,7 +1103,8 @@ def RunFCNNNoProj(
             if epoch_idx == N_EPOCHS - 1:
                 #                labels = encoder_out.max(1)[1].float()
                 if i == 0:
-                    data_encoder = torch.cat((encoder_out, labels.view(-1, 1)), dim=1)
+                    data_encoder = torch.cat(
+                        (encoder_out, labels.view(-1, 1)), dim=1)
                 else:
 
                     tmp2 = torch.cat((encoder_out, labels.view(-1, 1)), dim=1)
@@ -1091,7 +1123,6 @@ def RunFCNNNoProj(
         )"""
         epoch_loss.append(running_loss / train_len)
 
-        
         # testing our model
         running_loss = 0
         net.eval()
@@ -1103,13 +1134,13 @@ def RunFCNNNoProj(
                 if torch.cuda.is_available():
                     x = x.cuda()
                     labels = labels.cuda()
-                    
+
                 encoder_out_test = net(x)
                 # Compute the loss
-                #loss_classification = criterion_classification(torch.nn.functional.log_softmax(encoder_out,dim=1), labels)
+                # loss_classification = criterion_classification(torch.nn.functional.log_softmax(encoder_out,dim=1), labels)
                 loss = criterion_regression(encoder_out_test.flatten(), labels)
                 running_loss += loss.item()
-               
+
         """
         print(
             "test accuracy : ",
@@ -1122,45 +1153,45 @@ def RunFCNNNoProj(
             running_classification / test_len,
         )
         """
-        
+
         if running_loss < best_test:
             best_net_it = epoch_idx
             best_test = running_loss
             torch.save(net.state_dict(), str(outputPath) + "best_net")
-    
+
         epoch_val_loss.append(running_loss / test_len)
-        
-        
+
         """
     #print(f"\nFOR EVERY EPOCH {epoch_val_loss}\n")
-    title = f"MSE vs Epoch ({'Proj' if run_model == 'MaskGrad' else 'Initial'}, Training, Seed: {seed} in {SEEDS}, Fold {fold_idx+1}/{nfolds})"
+    title = f"MSE vs Epoch ({'Proj' if run_model == 'MaskGrad' else 'Initial'}, Training, Seed: {
+                            seed} in {SEEDS}, Fold {fold_idx+1}/{nfolds})"
     y_data = epoch_classification
     y_label = "MSE"
     x_data = range(0, len(y_data))
     x_label = "Epoch"
     plotGraph(y_data, x_data, y_label, x_label, title)
-    
+
     #print(f"\nFOR EVERY EPOCH {epoch_val_loss}\n")
-    title = f"MSE vs Epoch ({'Proj' if run_model == 'MaskGrad' else 'Initial'}, Validation, Seed: {seed} in {SEEDS}, Fold {fold_idx+1}/{nfolds})"
+    title = f"MSE vs Epoch ({'Proj' if run_model == 'MaskGrad' else 'Initial'}, Validation, Seed: {
+                            seed} in {SEEDS}, Fold {fold_idx+1}/{nfolds})"
     y_data = epoch_val_classification
     y_label = "MSE"
     x_data = range(0, len(y_data))
     x_label = "Epoch"
     plotGraph(y_data, x_data, y_label, x_label, title)
-    
+
     """
-    
-    title = f"MSE vs Epoch ( Training, Seed: {seed} in {SEEDS}, Fold {fold_idx+1} in {nfolds})"
+
+    title = f"MSE vs Epoch ( Training, Seed: {seed} "
+    title = title + f"Fold {fold_idx+1} in {nfolds})"
     y_data = epoch_loss
     y_label = "MSE"
     x_data = range(0, len(y_data))
     x_label = "Epoch"
     plotGraph(y_data, x_data, y_label, x_label, title)
-    
-   
-    
+
     print(f"Best net epoch for {typeEpoch} = ", best_net_it)
-    
+
     # Y_predit=np.array(Y_predit)
     # gaussianKDEPred=sc.gaussian_kde(Y_predit, bw_method=0.2)
     # fig = plt.figure()
@@ -1182,20 +1213,20 @@ def RunFCNNNoProj(
     # plt.title('Weight Distribution between predicted and the truth for TESTING')
     # plt.legend(["Predicted","Truth"])
     # plt.show()
-    
 
-    #if str(run_model) != "ProjectionLastEpoch":
-        # plt.figure()
-        # plt.plot( epoch_acc )
-        # plt.plot( epoch_val_acc )
-        # plt.title('Total accuracy classification')
-        # plt.show()
-        #print(
-        #    "{} epochs trained for  {}s , {} s/epoch".format(
-        #        N_EPOCHS, sum(train_time), np.mean(train_time)
-        #    )
-        #)
+    # if str(run_model) != "ProjectionLastEpoch":
+    # plt.figure()
+    # plt.plot( epoch_acc )
+    # plt.plot( epoch_val_acc )
+    # plt.title('Total accuracy classification')
+    # plt.show()
+    # print(
+    #    "{} epochs trained for  {}s , {} s/epoch".format(
+    #        N_EPOCHS, sum(train_time), np.mean(train_time)
+    #    )
+    # )
     return data_encoder, epoch_loss, best_test, net
+
 
 def RunAutoEncoder(
     net: nn.Module,
@@ -1207,7 +1238,7 @@ def RunAutoEncoder(
     test_len: int,
     optimizer,
     outputPath: str,
-    TYPE_PROJ,    
+    TYPE_PROJ,
     seed,
     SEEDS,
     fold_idx,
@@ -1276,7 +1307,7 @@ def RunAutoEncoder(
     (
         epoch_val_loss
     ) = ([])
-    best_test = np.inf 
+    best_test = np.inf
     for epoch_idx in range(N_EPOCHS):
         t1 = time.perf_counter()
         running_loss = 0
@@ -1284,14 +1315,14 @@ def RunAutoEncoder(
         for i, batch in enumerate(train_dl):
             x = batch[0]
             labels = batch[1]
-            #print(labels)
+            # print(labels)
 
             if torch.cuda.is_available():
                 x = x.cuda()
                 labels = labels.cuda()
 
             encoder_out = net(x)
-           
+
             loss = criterion_classification(encoder_out.flatten(), labels)
             optimizer.zero_grad()
             loss.backward()
@@ -1305,7 +1336,7 @@ def RunAutoEncoder(
                         not DO_PROJ_MIDDLE
                     ) and is_middle:  # Do no gradient masking at middle layer
                         pass
-                   
+
                     elif index % 2 == 0:
                         param.grad = torch.where(
                             param.data.abs() < 1e-4,
@@ -1319,7 +1350,8 @@ def RunAutoEncoder(
             if epoch_idx == N_EPOCHS - 1:
                 #                labels = encoder_out.max(1)[1].float()
                 if i == 0:
-                    data_encoder = torch.cat((encoder_out, labels.view(-1, 1)), dim=1)
+                    data_encoder = torch.cat(
+                        (encoder_out, labels.view(-1, 1)), dim=1)
                 else:
 
                     tmp2 = torch.cat((encoder_out, labels.view(-1, 1)), dim=1)
@@ -1355,9 +1387,9 @@ def RunAutoEncoder(
                 #     print(
                 #           f"Did not project layer {index} ({param.shape}) because: decoder"
                 #       )
-                if( DO_PROJ_MIDDLE == True or not is_middle ) :
-                        param.data = Projection(
-                            param.data, TYPE_PROJ, ETA,  AXIS=AXIS, ETA_STAR=ETA_STAR, device=device, TOL=TOL,).to(device)
+                if (DO_PROJ_MIDDLE == True or not is_middle):
+                    param.data = Projection(
+                        param.data, TYPE_PROJ, ETA,  AXIS=AXIS, ETA_STAR=ETA_STAR, device=device, TOL=TOL,).to(device)
 
 # =============================================================================
 #                     param.data = Projection(
@@ -1375,13 +1407,14 @@ def RunAutoEncoder(
                 if torch.cuda.is_available():
                     x = x.cuda()
                     labels = labels.cuda()
-                    
+
                 encoder_out_test = net(x)
                 # Compute the loss
-                #loss_classification = criterion_classification(torch.nn.functional.log_softmax(encoder_out,dim=1), labels)
-                loss = criterion_classification(encoder_out_test.flatten(), labels)
+                # loss_classification = criterion_classification(torch.nn.functional.log_softmax(encoder_out,dim=1), labels)
+                loss = criterion_classification(
+                    encoder_out_test.flatten(), labels)
                 running_loss += loss.item()
-               
+
         """
         print(
             "test accuracy : ",
@@ -1394,43 +1427,46 @@ def RunAutoEncoder(
             running_classification / test_len,
         )
         """
-        
+
         if running_loss < best_test:
             best_net_it = epoch_idx
             best_test = running_loss
             torch.save(net.state_dict(), str(outputPath) + "best_net")
-    
+
         epoch_val_loss.append(running_loss / test_len)
-        
-        
+
         """
     #print(f"\nFOR EVERY EPOCH {epoch_val_loss}\n")
-    title = f"MSE vs Epoch ({'Proj' if run_model == 'MaskGrad' else 'Initial'}, Training, Seed: {seed} in {SEEDS}, Fold {fold_idx+1}/{nfolds})"
+    title = f"MSE vs Epoch ({'Proj' if run_model == 'MaskGrad' else 'Initial'}, Training, Seed: {
+                            seed} in {SEEDS}, Fold {fold_idx+1}/{nfolds})"
     y_data = epoch_classification
     y_label = "MSE"
     x_data = range(0, len(y_data))
     x_label = "Epoch"
     plotGraph(y_data, x_data, y_label, x_label, title)
-    
+
     #print(f"\nFOR EVERY EPOCH {epoch_val_loss}\n")
-    title = f"MSE vs Epoch ({'Proj' if run_model == 'MaskGrad' else 'Initial'}, Validation, Seed: {seed} in {SEEDS}, Fold {fold_idx+1}/{nfolds})"
+    title = f"MSE vs Epoch ({'Proj' if run_model == 'MaskGrad' else 'Initial'}, Validation, Seed: {
+                            seed} in {SEEDS}, Fold {fold_idx+1}/{nfolds})"
     y_data = epoch_val_classification
     y_label = "MSE"
     x_data = range(0, len(y_data))
     x_label = "Epoch"
     plotGraph(y_data, x_data, y_label, x_label, title)
-    
+
     """
-    
-    title = f"MSE vs Epoch ({'Proj' if run_model == 'MaskGrad' else 'Initial'}, Training, Seed: {seed} in {SEEDS}, Fold {fold_idx+1}in{nfolds})"
+
+    title = f"MSE vs Epoch ({'Proj' if run_model == 'MaskGrad' else 'Initial'}"
+    title = title + \
+        f"Training, Seed: {seed} in {SEEDS}, Fold {fold_idx+1}in{nfolds})"
     y_data = epoch_loss
     y_label = "MSE"
     x_data = range(0, len(y_data))
     x_label = "Epoch"
     plotGraph(y_data, x_data, y_label, x_label, title)
-    
+
     print(f"Best net epoch for {typeEpoch} = ", best_net_it)
-    
+
     # Y_predit=np.array(Y_predit)
     # gaussianKDEPred=sc.gaussian_kde(Y_predit, bw_method=0.2)
     # fig = plt.figure()
@@ -1452,40 +1488,192 @@ def RunAutoEncoder(
     # plt.title('Weight Distribution between predicted and the truth for TESTING')
     # plt.legend(["Predicted","Truth"])
     # plt.show()
-    
 
-    #if str(run_model) != "ProjectionLastEpoch":
-        # plt.figure()
-        # plt.plot( epoch_acc )
-        # plt.plot( epoch_val_acc )
-        # plt.title('Total accuracy classification')
-        # plt.show()
-        #print(
-        #    "{} epochs trained for  {}s , {} s/epoch".format(
-        #        N_EPOCHS, sum(train_time), np.mean(train_time)
-        #    )
-        #)
+    # if str(run_model) != "ProjectionLastEpoch":
+    # plt.figure()
+    # plt.plot( epoch_acc )
+    # plt.plot( epoch_val_acc )
+    # plt.title('Total accuracy classification')
+    # plt.show()
+    # print(
+    #    "{} epochs trained for  {}s , {} s/epoch".format(
+    #        N_EPOCHS, sum(train_time), np.mean(train_time)
+    #    )
+    # )
     return data_encoder, epoch_loss, best_test, net
+
+
+def RunDeepSurv(
+    net: nn.Module,
+    criterion_survival,  # Appropriate loss function for survival
+    train_dl,
+    train_len,
+    test_dl,
+    test_len,
+    optimizer,
+    outputPath,
+    TYPE_PROJ,
+    seed,
+    N_EPOCHS=30,
+    DO_PROJ_MIDDLE=False,
+    ETA=100,
+    ETA_STAR=100,
+    TOL=1e-3,
+    AXIS=0,
+    run_model="No_Proj",
+    fold_idx=0,
+    nfolds=4,
+    typeEpoch=None,
+):
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    epoch_loss,  train_time = (
+        [],
+        []
+    )
+    (
+        epoch_val_loss
+    ) = ([])
+    best_test = np.inf
+
+    for epoch_idx in range(N_EPOCHS):
+
+        model = fds.Custom_CoxPH(net, tt.optim.Adam)
+
+        x_global = []
+        duration_global = []
+        event_global = []
+        t1 = time.perf_counter()
+        running_loss = 0
+        net.train()
+        for i, batch in enumerate(train_dl):
+            x = batch[0]
+            duration = batch[1][:, 1]
+            event = batch[1][:, 0]
+            # cast x into numpy and append to x_global
+            x_global.append(x.cpu().numpy())
+            duration_global.append(duration.cpu().numpy())
+            event_global.append(event.cpu().numpy())
+            if torch.cuda.is_available():
+                x = x.cuda()
+                duration = duration.cuda()
+                event = event.cuda()
+
+            encoder_out = net(x)  # Forward pass
+            loss = model.loss(encoder_out, duration, event)  # Compute loss
+            optimizer.zero_grad()  # Zero gradients
+            loss.backward()  # Backward pass
+
+            if run_model == "MaskGrad":
+                net_parameters = list(net.parameters())
+                for index, param in enumerate(net_parameters):
+                    is_middle = index == len(net_parameters) / 2 - 1
+                    if not DO_PROJ_MIDDLE or not is_middle:
+                        pass
+                    elif index % 2 == 0:
+                        param.grad = torch.where(
+                            param.data.abs() < TOL,
+                            torch.zeros_like(param.grad),
+                            param.grad,
+                        )
+
+            optimizer.step()  # Update weights
+            with torch.no_grad():
+                running_loss += loss.item()
+
+                if epoch_idx == N_EPOCHS - 1:
+                    # Collect encoder outputs along with duration and event for analysis
+                    if i == 0:
+                        data_encoder = torch.cat(
+                            (encoder_out, duration.view(-1, 1), event.view(-1, 1)), dim=1
+                        )
+                    else:
+                        tmp = torch.cat(
+                            (encoder_out, duration.view(-1, 1), event.view(-1, 1)), dim=1)
+                        data_encoder = torch.cat((data_encoder, tmp), dim=0)
+
+            # Apply projection at last epoch (if required)
+            if epoch_idx == (N_EPOCHS - 1):
+                net_parameters = list(net.parameters())
+                for index, param in enumerate(net_parameters):
+                    is_middle = index == len(net_parameters) / 2 - 1
+                    if not DO_PROJ_MIDDLE or not is_middle:
+                        param.data = Projection(
+                            param.data, TYPE_PROJ, ETA, AXIS=AXIS, ETA_STAR=ETA_STAR, device=device, TOL=TOL
+                        ).to(device)
+
+            running_loss += loss.item()
+
+        t2 = time.perf_counter()
+        epoch_loss.append(running_loss / train_len)
+
+        # Model Evaluation on Test Data using integrated Brier Score
+
+        running_loss_test = 0
+        net.eval()
+
+        x_global = np.concatenate(x_global)
+        duration_global = np.concatenate(duration_global)
+        event_global = np.concatenate(event_global)
+        model.compute_baseline_hazards(
+            x_global, [duration_global, event_global])
+        test_duration = []
+        test_event = []
+        test_x = []
+        for i, batch in enumerate(test_dl):
+            test_x.append(batch[0].cpu().numpy())
+            test_duration.append(batch[1][:, 1].cpu().numpy())
+            test_event.append(batch[1][:, 0].cpu().numpy())
+        test_x = np.concatenate(test_x)
+        test_duration = np.concatenate(test_duration)
+        test_event = np.concatenate(test_event)
+
+        test_pred = model.predict_surv_df(test_x)
+        ev = fds.EvalSurv(test_pred, test_duration,
+                          test_event, censor_surv='km')
+        time_grid = np.linspace(test_duration.min(),
+                                test_duration.max(), 100)
+        running_loss_test = ev.integrated_brier_score(time_grid)
+
+        if running_loss_test < best_test:
+            best_net_it = epoch_idx
+            best_test = running_loss_test
+            torch.save(net.state_dict(), str(outputPath) + "best_net")
+            best_model = model
+
+        epoch_val_loss.append(running_loss_test)
+
+    title = f"MSE vs Epoch ( Training, Seed: {seed} "
+    title = title + f"Fold {fold_idx+1} in {nfolds})"
+    y_data = epoch_loss
+    y_label = "MSE"
+    x_data = range(0, len(y_data))
+    x_label = "Epoch"
+    plotGraph(y_data, x_data, y_label, x_label, title)
+
+    print(f"Best net epoch for {typeEpoch} = ", best_net_it)
+
+    return data_encoder, epoch_loss, best_test, net, best_model
 
 
 def training(seed, feature_len, TYPE_ACTIVATION, DEVICE, n_hidden, norm, feature_names,
              GRADIENT_MASK, net_name, LR, criterion_regression, train_dl, train_len,
-             gaussianKDE, test_dl, test_len, outputPath, TYPE_PROJ,SEEDS,fold_idx,
+             gaussianKDE, test_dl, test_len, outputPath, TYPE_PROJ, SEEDS, fold_idx,
              nfolds, N_EPOCHS, N_EPOCHS_MASKGRAD, DO_PROJ_MIDDLE, ETA, AXIS, TOL):
-    
+
     np.random.seed(seed)
     torch.manual_seed(seed)
     torch.cuda.manual_seed(seed)
 
-    net = buildNet(feature_len, TYPE_ACTIVATION, net_name, DEVICE, n_hidden, norm )
+    net = buildNet(feature_len, TYPE_ACTIVATION,
+                   net_name, DEVICE, n_hidden, norm)
 
     weights_entry, spasity_w_entry = fnp.weights_and_sparsity(net, TOL)
-    
-    run_model = "No_proj"  
+
+    run_model = "No_proj"
     if GRADIENT_MASK:
         run_model = "ProjectionLastEpoch"
-        
-    ## Choose projection function
+
+    # Choose projection function
     if not GRADIENT_MASK:
         TYPE_PROJ = "No_proj"
         TYPE_PROJ_NAME = "No_proj"
@@ -1494,32 +1682,29 @@ def training(seed, feature_len, TYPE_ACTIVATION, DEVICE, n_hidden, norm, feature
     lr_scheduler = torch.optim.lr_scheduler.StepLR(
         optimizer, step_size=150, gamma=0.1
     )
-    data_encoder, epoch_loss, best_test, trained_net = RunAutoEncoder(
+
+    data_encoder, epoch_loss, best_test, trained_net, best_model = RunDeepSurv(  # RunDeepSurv
         net,
         criterion_regression,
         train_dl,
         train_len,
-        gaussianKDE, 
         test_dl,
         test_len,
         optimizer,
         outputPath,
         TYPE_PROJ,
         seed,
-        SEEDS,
-        fold_idx,
-        nfolds,
-        lr_scheduler,
         N_EPOCHS,
-        run_model,
         DO_PROJ_MIDDLE,
         ETA,
-        AXIS=AXIS,
-        TOL=TOL,
-        typeEpoch="Adam"
+        AXIS,
+        TOL,
+        fold_idx,
+        nfolds,
+        typeEpoch="Adam",
     )
 
-    weights_interim_enc , _ = fnp.weights_and_sparsity(trained_net, TOL)
+    weights_interim_enc, _ = fnp.weights_and_sparsity(trained_net, TOL)
 
     # Do masked gradient
     if GRADIENT_MASK:
@@ -1533,8 +1718,9 @@ def training(seed, feature_len, TYPE_ACTIVATION, DEVICE, n_hidden, norm, feature
         torch.cuda.manual_seed(seed)
 
         # run AutoEncoder
-        net = buildNet(feature_len, TYPE_ACTIVATION, net_name, DEVICE, n_hidden, norm )
-        
+        net = buildNet(feature_len, TYPE_ACTIVATION,
+                       net_name, DEVICE, n_hidden, norm)
+
         optimizer = torch.optim.Adam(trained_net.parameters(), lr=LR)
         lr_scheduler = torch.optim.lr_scheduler.StepLR(
             optimizer, 150, gamma=0.1
@@ -1560,46 +1746,52 @@ def training(seed, feature_len, TYPE_ACTIVATION, DEVICE, n_hidden, norm, feature
             epoch_loss,
             best_test,
             net,
-        ) = RunAutoEncoder(
+            best_model,
+        ) = RunDeepSurv(
             trained_net,
             criterion_regression,
             train_dl,
             train_len,
-            gaussianKDE,
             test_dl,
             test_len,
             optimizer,
             outputPath,
             TYPE_PROJ,
             seed,
-            SEEDS,
-            fold_idx,
-            nfolds,
-            lr_scheduler,
             N_EPOCHS_MASKGRAD,
-            run_model,
             DO_PROJ_MIDDLE,
             ETA,
-            AXIS=AXIS,typeEpoch=run_model
+            AXIS=AXIS,
+            TOL=TOL,
+            fold_idx=fold_idx,
+            nfolds=nfolds,
+            typeEpoch="MaskGrad",
         )
-            
-       
-    return data_encoder, net
+
+    return data_encoder, net, best_model
 
 
-def buildNet(feature_len, TYPE_ACTIVATION, net_name, DEVICE, n_hidden, norm ):
+def buildNet(feature_len, TYPE_ACTIVATION, net_name, DEVICE, n_hidden, norm):
     if net_name == "LeNet":
         net = LeNet_300_100(n_inputs=feature_len, n_outputs=1, activation=TYPE_ACTIVATION).to(
             DEVICE
         )  # LeNet
     if net_name == "netBio":
-        net = netBio(feature_len, 1, n_hidden, activation=TYPE_ACTIVATION, norm = norm).to(DEVICE)  # netBio
+        net = netBio(feature_len, 1, n_hidden,
+                     # netBio
+                     activation=TYPE_ACTIVATION, norm=norm).to(DEVICE)
 
     if net_name == "FAIR":
-        net = FairAutoEncoder(feature_len, 1, n_hidden, activation=TYPE_ACTIVATION, norm = norm).to(DEVICE)  # netBio
+        net = FairAutoEncoder(
+            # netBio
+            feature_len, 1, n_hidden, activation=TYPE_ACTIVATION, norm=norm).to(DEVICE)
 
     if net_name == "dnn":
-        net = DNN(feature_len, 1, 0.1, ratio = False).to(DEVICE)  # netBio
+        net = DNN(feature_len, 1, 0.1, ratio=False).to(DEVICE)  # netBio
+
+    if net_name == 'DeepSurv':
+        net = fds.MLP(feature_len, n_hidden, 1, batch_norm=True,
+                      dropout=0.1, output_bias=False).to(DEVICE)
     return net
 
 
@@ -1607,7 +1799,7 @@ def selectf(x, feature_name):
     x = x.cpu()
     _, d = x.shape
     mat = []
-    lenmax = min(len(feature_name), d) 
+    lenmax = min(len(feature_name), d)
     for i in range(lenmax):
         mat.append([feature_name[i] + "", np.linalg.norm(x[:, i])])
     mat = sorted(mat, key=lambda norm: norm[1], reverse=True)
@@ -1629,18 +1821,19 @@ def runBestNet(
     test_len,
     SnormGenes=True
 ):
-    """ Load the best net and test it on your test set 
+    """ Load the best net and test it on your test set
     Attributes:
         train_dl, test_dl: train(test) sets
-        outputPath: patch to load the net weights 
+        outputPath: patch to load the net weights
     Return:
 
-        class_test: accuracy of each class for testing       
+        class_test: accuracy of each class for testing
     """
     Y_predit = []
     Y_true = []
     index_pred_probs = []
-    net.load_state_dict(torch.load(str(outputPath) + "best_net", weights_only=True))
+    net.load_state_dict(torch.load(
+        str(outputPath) + "best_net", weights_only=True))
     net.eval()
     # for i, batch in enumerate(train_dl):
     #     x = batch[0]
@@ -1650,7 +1843,7 @@ def runBestNet(
     #         labels = labels.cuda()
     #     encoder_out, decoder_out = net(x)
     #     loss_classification = nn.MSELoss(encoder_out.flatten(), labels)
-          
+
     first = True
     for i, batch in enumerate(test_dl):
         with torch.no_grad():
@@ -1665,18 +1858,19 @@ def runBestNet(
                 [index[0], labels.item()]
                 + encoder_out.detach().cpu().numpy().tolist()[0]
             )
+
             Y_predit.append(encoder_out.flatten().item())
             Y_true.append(labels.item())
 
             if first:
-                data_encoder = torch.cat((encoder_out, labels.view(-1, 1)), dim=1)
+                data_encoder = torch.cat(
+                    (encoder_out, labels.view(-1, 1)), dim=1)
 
                 first = False
             else:
                 tmp2 = torch.cat((encoder_out, labels.view(-1, 1)), dim=1)
                 data_encoder = torch.cat((data_encoder, tmp2), dim=0)
 
-    
     try:
         if nfold != 0:
             df = pd.read_csv(
@@ -1689,31 +1883,136 @@ def runBestNet(
                 columns=["Name", "Initial Value"]
                 + ["Predicted Value"],
             )
-            soft.to_csv("{}Labelspred_value.csv".format(outputPath), sep=";", index=0, float_format='%g')
+            soft.to_csv("{}Labelspred_value.csv".format(
+                outputPath), sep=";", index=0, float_format='%g')
         else:
             soft = pd.DataFrame(
                 index_pred_probs,
                 columns=["Name", "Initial Value"]
-                + ["Predicted Value" ],
+                + ["Predicted Value"],
             )
-            soft.to_csv("{}Labelspred_value.csv".format(outputPath), sep=";", index=0, float_format='%g')
+            soft.to_csv("{}Labelspred_value.csv".format(
+                outputPath), sep=";", index=0, float_format='%g')
     except FileNotFoundError:
         soft = pd.DataFrame(
             index_pred_probs,
             columns=["Name", "Initial Value"]
-            + ["Predicted Value" ],
+            + ["Predicted Value"],
         )
-        soft.to_csv("{}Labelspred_value.csv".format(outputPath), sep=";", index=0, float_format='%g')
+        soft.to_csv("{}Labelspred_value.csv".format(outputPath),
+                    sep=";", index=0, float_format='%g')
 
-    
-   
     return (
         data_encoder,
         Y_true,
         Y_predit,
     )
 
-def valueGap (true, predicted, divided):
+
+def runBestNet_survie(
+    test_dl,
+    outputPath,
+    nfold,
+    net,
+    feature_name,
+    test_len,
+    model,
+    SnormGenes=True
+):
+    """ Test the best DeepSurv model on the test set.
+    Attributes:
+        test_dl: test dataloader
+        outputPath: path to load the model weights
+        nfold: fold index for cross-validation (if applicable)
+        net: trained DeepSurv network
+        feature_name: feature names
+        test_len: size of the test dataset
+        SnormGenes: indicates gene normalization (if applicable)
+    Returns:
+        data_encoder: tensor containing predictions and true durations/events
+        concordance_index: C-index for model evaluation
+    """
+
+    index_pred_probs = []
+    net.load_state_dict(torch.load(
+        str(outputPath) + "best_net", weights_only=True))
+    net.eval()
+
+    durations = []
+    events = []
+    hazards = []
+    xs = []
+
+    first = True
+
+    for i, batch in enumerate(test_dl):
+        with torch.no_grad():
+            x = batch[0]  # Features
+            duration = batch[1][:, 1]  # Observed times
+            event = batch[1][:, 0]  # Event indicators
+            index = batch[2]  # Sample indices
+
+            if torch.cuda.is_available():
+                x = x.cuda()
+                duration = duration.cuda()
+                event = event.cuda()
+
+            # Predicted hazard (DeepSurv outputs negative log hazard ratios)
+            hazard = net(x)
+
+            # Collect predictions
+            xs.append(x.cpu().numpy())
+            durations.append(duration.cpu().numpy())
+            events.append(event.cpu().numpy())
+
+            index_pred_probs.append(
+                [index[0], duration.item(), event.item()]
+                + x.cpu().numpy().tolist()
+            )
+
+            # Build data encoder
+            if first:
+                data_encoder = torch.cat(
+                    (hazard, duration.view(-1, 1), event.view(-1, 1)), dim=1
+                )
+                first = False
+            else:
+                tmp2 = torch.cat(
+                    (hazard, duration.view(-1, 1), event.view(-1, 1)), dim=1
+                )
+                data_encoder = torch.cat((data_encoder, tmp2), dim=0)
+
+    # Save predictions to a CSV file
+    columns = ["Name", "duration", "event", "Hazard"]
+    results_df = pd.DataFrame(index_pred_probs, columns=columns)
+    results_df.to_csv(f"{outputPath}Labelspred_value.csv",
+                      sep=";", index=False, float_format='%g')
+
+    # # Calculate concordance index (C-index)
+    # concordance_index_value = concordance_index(
+    #     durations, -1 * np.array(hazards), events
+    # )
+
+    # Calculate integrated Brier score
+    events = np.concatenate(events)
+    durations = np.concatenate(durations)
+    xs = np.concatenate(xs)
+
+    # model.compute_baseline_hazards(  # Compute baseline hazards
+    #     input=xs
+    # )
+    test_pred = model.predict_surv_df(np.array(xs))
+    ev = fds.EvalSurv(test_pred, np.array(durations),
+                      np.array(events), censor_surv='km')
+    time_grid = np.linspace(np.array(durations).min(),
+                            np.array(durations).max(), 100)
+    concordance_index_value = ev.integrated_brier_score(time_grid)
+
+    print(f"integrated_brier_score: {concordance_index_value:.4f}")
+    return data_encoder, concordance_index_value, ev
+
+
+def valueGap(true, predicted, divided):
     """
 
     Parameters
@@ -1723,30 +2022,31 @@ def valueGap (true, predicted, divided):
 
     Returns
     -------
-    the negative and positive gap 
+    the negative and positive gap
 
     """
-    resultNeg= 0
-    resultPos= 0
+    resultNeg = 0
+    resultPos = 0
     true = true.tolist()
     pred = predicted.tolist()
     for i in range(len(true)):
-        dif= true[i]-pred[i]
-        if dif<0:
-            resultNeg+=dif
-        if dif>0:
-            resultPos+=dif
-    
+        dif = true[i]-pred[i]
+        if dif < 0:
+            resultNeg += dif
+        if dif > 0:
+            resultPos += dif
+
     return resultNeg*divided/len(true), resultPos*divided/len(true)
 
 
-def PSNR( true, predicted):
+def PSNR(true, predicted):
     MSE = mean_squared_error(
         true, predicted
     )
 
-    denom = sum([element for element in true.tolist()])/len(predicted.tolist())**2
-    
+    denom = sum([element for element in true.tolist()]) / \
+        len(predicted.tolist())**2
+
     return MSE/denom
 
 
@@ -1754,12 +2054,12 @@ def packClassResult(accuracy_train, accuracy_test, fold_nb, label_name):
     """ Transform the accuracy of each class in different fold to DataFrame
     Attributes:
         accuracy_train: List, class_train in different fold
-        accuracy_test: List, class_test in different fold 
-        fold_nb: number of fold  
+        accuracy_test: List, class_test in different fold
+        fold_nb: number of fold
         label_name: name of different classes(Ex: Class 1, Class 2)
     Return:
-        df_accTrain: dataframe, training accuracy per Class in different fold 
-        df_acctest: dataframe, testing accuracy per Class in different fold     
+        df_accTrain: dataframe, training accuracy per Class in different fold
+        df_acctest: dataframe, testing accuracy per Class in different fold
     """
     columns = ["Global"] + ["Class " + str(x) for x in label_name]
     ind_df = ["Fold " + str(x + 1) for x in range(fold_nb)]
@@ -1775,26 +2075,27 @@ def packClassResult(accuracy_train, accuracy_test, fold_nb, label_name):
 
 def packMetric(data, fold_nb):
     columns = (
-        ["MSE"]+ ["RMSE"]+ ["MAE"]+["Negative gap"]+ ["Positive gap"]
+        ["MSE"] + ["RMSE"] + ["MAE"]+["Negative gap"] + ["Positive gap"]
     )
     ind_df = ["Fold " + str(x + 1) for x in range(fold_nb)]
-    
+
     df = pd.DataFrame(data, index=ind_df, columns=columns)
     df.loc["Mean"] = df.apply(lambda x: x.mean())
     df.loc["Std"] = df.apply(lambda x: x.std())
-    
+
     return df
+
 
 def packMetricsResult(data_train, data_test, fold_nb):
     """ Transform the accuracy of each class in different fold to DataFrame
     Attributes:
         accuracy_train: List, class_train in different fold
-        accuracy_test: List, class_test in different fold 
-        fold_nb: number of fold  
+        accuracy_test: List, class_test in different fold
+        fold_nb: number of fold
         label_name: name of different classes(Ex: Class 1， Class 2)
     Return:
-        df_accTrain: dataframe, training accuracy per Class in different fold 
-        df_acctest: dataframe, testing accuracy per Class in different fold     
+        df_accTrain: dataframe, training accuracy per Class in different fold
+        df_acctest: dataframe, testing accuracy per Class in different fold
     """
     df_metricsTrain = packMetric(data_train, fold_nb)
     df_metricsTest = packMetric(data_test, fold_nb)
@@ -1808,13 +2109,13 @@ def Projection(
     """ For different projection, give the correct args and do projection
     Args:
         W: tensor - net weight matrix
-        TYPE_PROJ: string and funciont- use which projection  
-        ETA: int - only for Proximal_PGL1 or Proximal_PGL11 projection 
-        ETA_STAR: int - only for Proximal_PGNuclear or Proximal_PGL1_Nuclear projection 
-        AXIS: int 0,1 - only for Proximal_PGNuclear or Proximal_PGL1_Nuclear projection 
-        device: parameters of projection 
+        TYPE_PROJ: string and funciont- use which projection
+        ETA: int - only for Proximal_PGL1 or Proximal_PGL11 projection
+        ETA_STAR: int - only for Proximal_PGNuclear or Proximal_PGL1_Nuclear projection
+        AXIS: int 0,1 - only for Proximal_PGNuclear or Proximal_PGL1_Nuclear projection
+        device: parameters of projection
     Return:
-        W_new: tensor - W after projection 
+        W_new: tensor - W after projection
     """
     if TYPE_PROJ == "No_proj":
         W_new = W
@@ -1828,13 +2129,13 @@ def Projection(
     if TYPE_PROJ == proj_l12ball:
         W_new = TYPE_PROJ(W, ETA, AXIS, device=device)
     if TYPE_PROJ == proj_l1Inftyball_line_unbounded:
-        W_new = TYPE_PROJ(W, ETA, device=device)  
+        W_new = TYPE_PROJ(W, ETA, device=device)
     if TYPE_PROJ == proj_l1infball:
-        
+
         W_new = TYPE_PROJ(W, ETA, AXIS, device=device, tol=TOL)
     if TYPE_PROJ == bilevel_proj_l1Inftyball:
-        W_new = TYPE_PROJ(W, ETA, device)  
-        
+        W_new = TYPE_PROJ(W, ETA, device)
+
     if TYPE_PROJ == proj_nuclear:
         W_new = TYPE_PROJ(W, ETA_STAR, device=device)
     return W_new
@@ -1844,12 +2145,12 @@ def ShowPcaTsne(X, Y, data_encoder, center_distance, class_len, tit):
     """ Visualization with PCA and Tsne
     Args:
         X: numpy - original imput matrix
-        Y: numpy - label matrix  
-        data_encoder: tensor  - latent sapce output, encoded data  
+        Y: numpy - label matrix
+        data_encoder: tensor  - latent sapce output, encoded data
         center_distance: numpy - center_distance matrix
-        class_len: int - number of class 
+        class_len: int - number of class
     Return:
-        Non, just show results in 2d space  
+        Non, just show results in 2d space
     """
 
     # Define the color list for plot
@@ -1975,11 +2276,11 @@ def Reconstruction(INTERPELLATION_LAMBDA, data_encoder, net, class_len):
          INTERPELLATION_LAMBDA: float - [0,1], interpolated_data = (1-λ)*x + λ*y
          data_encoder: tensor - data in laten space (output of encoder)
          net: autoencoder net
-         
+
     Returns:
          center_mean: numpy - with shape[class_len, class_len], center of each cluster
          interpellation_latent: numpy - with shape[class_len, class_len], interpolated data
-         
+
     """
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     # For interpellation
@@ -2003,7 +2304,8 @@ def Reconstruction(INTERPELLATION_LAMBDA, data_encoder, net, class_len):
     #    interpellation_decoded = net.decoder(torch.from_numpy(interpellation_latent).float().to(device))
 
     # Decode center data
-    center_decoded = net.decoder(torch.from_numpy(center_mean).float().to(device))
+    center_decoded = net.decoder(
+        torch.from_numpy(center_mean).float().to(device))
 
     # Distance of each center
     center_distance = CalculateDistance(center_mean)
@@ -2020,20 +2322,21 @@ def Reconstruction(INTERPELLATION_LAMBDA, data_encoder, net, class_len):
 def topGenes(
     X, Y, feature_name, feature_len, method, nb_samples, device, net, tol=1e-3
 ):
-    """ Get the rank of features for each class, depends on it's contribution 
+    """ Get the rank of features for each class, depends on it's contribution
     Attributes:
         X,Y,feature_name, feature_len,  device : data
         method: 'Shap' is very slow; 'Captum_ig', 'Captum_dl', Captum_gs' give almost the same results
-        nb_samples: only for 'Shap', we used a part of the original data, other methods used all original data 
+        nb_samples: only for 'Shap', we used a part of the original data, other methods used all original data
     Return:
-        res: dataframe, ranked features (a kind of interpretation of neural networks) 
+        res: dataframe, ranked features (a kind of interpretation of neural networks)
     """
 
     input_x = torch.from_numpy(X).float().to(device)
     if method == "Shap":
         print("Running Shap Model... (It may take a long time)")
         nb_samples = nb_samples
-        rand_index = np.random.choice(input_x.shape[0], nb_samples, replace=True)
+        rand_index = np.random.choice(
+            input_x.shape[0], nb_samples, replace=True)
         background = input_x[rand_index]
         Y_rand = Y[rand_index].reshape(-1, 1)
         Y_unique, Y_counts = np.unique(Y_rand, return_counts=True)
@@ -2066,23 +2369,23 @@ def topGenes(
         )
 
     feature_rank = np.empty(
-        (feature_len, 2 ), dtype=object
+        (feature_len, 2), dtype=object
     )  # save ranked features and weights
 
     x_axis_data = np.arange(input_x.shape[1])
-    x_axis_data_labels = list(map(lambda idx: feature_name[idx] , x_axis_data))
+    x_axis_data_labels = list(map(lambda idx: feature_name[idx], x_axis_data))
     dl_attr_test_sum = attributions.cpu().detach().numpy().sum(0)
-    dl_attr_test_norm_sum = dl_attr_test_sum / np.linalg.norm(dl_attr_test_sum, ord=1)
-    
-    
-    data=list(zip(x_axis_data_labels,dl_attr_test_norm_sum))
-    sorted_data=sorted(data,key=lambda x: x[1], reverse=True)
-    sorted_label=[x[0] for x in sorted_data]
-    sorted_value=[x[1] for x in sorted_data]
-    
+    dl_attr_test_norm_sum = dl_attr_test_sum / \
+        np.linalg.norm(dl_attr_test_sum, ord=1)
+
+    data = list(zip(x_axis_data_labels, dl_attr_test_norm_sum))
+    sorted_data = sorted(data, key=lambda x: x[1], reverse=True)
+    sorted_label = [x[0] for x in sorted_data]
+    sorted_value = [x[1] for x in sorted_data]
+
     feature_rank[:, 0] = sorted_label
-    feature_rank[:,1] = sorted_value
-    
+    feature_rank[:, 1] = sorted_value
+
     # Save results as DAtaFrame
     mat_head = np.array(
         ["topGenes", "Weights"]
@@ -2090,21 +2393,20 @@ def topGenes(
     mat_head = mat_head.reshape(1, -1)
     mat = np.r_[mat_head, feature_rank]
     mat[1:, 1] = mat[1:, 1] / float(mat[1, 1])
-    #columns = ["Class", "class"]
+    # columns = ["Class", "class"]
     ind_df = ["Attributes"] + [str(x) for x in range(feature_len)]
     res = pd.DataFrame(mat, index=ind_df)
-    #print(len(indices))
+    # print(len(indices))
     return res
-
 
 
 def show_img(x_list, file_name):
     """Visualization of Matrix, color map
-    
+
     Attributes:
         x_list: list - list of matrix to be shown.
         titile: list - list of figure title.
-      
+
     Returns:
         non
     """
@@ -2119,7 +2421,7 @@ def show_img(x_list, file_name):
     x = np.array(sorted(d.T, key=lambda d: d[-1], reverse=True))
 
     x = x[:, :-1].T
-    
+
     x = (x - x.min()) / (x.max() - x.min())
 
     plt.figure()
@@ -2144,15 +2446,14 @@ def show_img(x_list, file_name):
     plt.show()
 
 
-
 def sparsity_line(M, tol=1.0e-3, device="cpu"):
     """Get the line sparsity(%) of M
-    
+
     Attributes:
         M: Tensor - the matrix.
         tol: Scalar,optional - the threshold to select zeros.
         device: device, cpu or gpu
-      
+
     Returns:
         spacity: Scalar (%)- the spacity of the matrix.
 
@@ -2167,12 +2468,12 @@ def sparsity_line(M, tol=1.0e-3, device="cpu"):
 
 def sparsity_col(M, tol=1.0e-3, device="cpu"):
     """Get the line sparsity(%) of M
-    
+
     Attributes:
         M: Tensor - the matrix.
         tol: Scalar,optional - the threshold to select zeros.
         device: device, cpu or gpu
-      
+
     Returns:
         spacity: Scalar (%)- the spacity of the matrix.
 
@@ -2190,24 +2491,24 @@ def intersection_of_columns(df):
     intersection = set.intersection(*sets)
     return list(intersection)
 
+
 def pad_list_to_length(lst, n):
     while len(lst) < n:
         lst.append(' ')
     return lst
+
 
 def removedf(dataframe, keepDF):
     liste = keepDF.tolist()
     liste.append('Label')
     liste.append('N')
     newDataframe = dataframe[dataframe['Name'].isin(liste)]
-           
+
     return newDataframe, liste
 
 
-from sklearn.preprocessing import scale as scale
-
 def ReadData(
-    file_name, doScale=True, doLog=True, doRowNorm = False
+    file_name, doScale=True, doLog=True, doRowNorm=False
 ):
     try:
         data_pd = pd.read_csv(
@@ -2227,7 +2528,7 @@ def ReadData(
             encoding="ISO-8859-1",
             low_memory=False,
         )
-   
+
     X = (data_pd.iloc[1:, 1:].values.astype(float)).T
     Y = data_pd.iloc[0, 1:].values.astype(float).astype(np.int64)
     col = data_pd.columns.to_list()
@@ -2245,22 +2546,22 @@ def ReadData(
     if doScale:
         X = scale(X, axis=0)  # Standardization along rows
 
-    if doRowNorm: 
-        X = X - np.mean(X,axis = 1, keepdims = True)
-        
-    
-    newY=[0]*len(Y)
+    if doRowNorm:
+        X = X - np.mean(X, axis=1, keepdims=True)
+
+    newY = [0]*len(Y)
     divided = 0
     for i in range(len(Y)):
-        divided= math.pow(10,(1 + math.floor( math.log10( Y[i] ) )))
-        newY[i]=Y[i]/ divided
-    Y=np.array(newY)
-    
-    gaussianKDE=sc.gaussian_kde(Y, bw_method=0.2)
+        divided = math.pow(10, (1 + math.floor(math.log10(Y[i]))))
+        newY[i] = Y[i] / divided
+    Y = np.array(newY)
+
+    gaussianKDE = sc.gaussian_kde(Y, bw_method=0.2)
     return X, Y, feature_name, label_name, patient_name, gaussianKDE, divided
 
+
 def ReadDataCV(
-    file_name,test_size=0.2, doScale=True, doLog=True, doRowNorm = False
+    file_name, test_size=0.2, doScale=True, doLog=True, doRowNorm=False
 ):
     try:
         data_pd = pd.read_csv(
@@ -2280,19 +2581,19 @@ def ReadDataCV(
             encoding="ISO-8859-1",
             low_memory=False,
         )
-   
+
     X = (data_pd.iloc[1:, 1:].values.astype(float)).T
-    Y = data_pd.iloc[0, 1:].values.astype(float).astype(np.int64)
+    Y = data_pd.iloc[0, 1:].values.astype(float).astype(np.int64) + 1
+
     col = data_pd.columns.to_list()
     if col[0] != "Name":
         col[0] = "Name"
     data_pd.columns = col
-    
-    #split 80%-20%
+
+    # split 80%-20%
     X_train, X_test, y_train, y_test = train_test_split(
         X, Y, test_size=test_size, random_state=42)
-    
-    
+
     feature_name = data_pd["Name"].values.astype(str)[1:]
     label_name_train = np.unique(y_train)
     label_name_test = np.unique(y_test)
@@ -2308,38 +2609,110 @@ def ReadDataCV(
         X_train = scale(X_train, axis=0)  # Standardization along rows
         X_test = scale(X_test, axis=0)  # Standardization along rows
 
-    if doRowNorm: 
-        X_train = X_train - np.mean(X_train,axis = 1, keepdims = True)
-        X_test = X_test - np.mean(X_test,axis = 1, keepdims = True)
-        
+    if doRowNorm:
+        X_train = X_train - np.mean(X_train, axis=1, keepdims=True)
+        X_test = X_test - np.mean(X_test, axis=1, keepdims=True)
+
     # for index, label in enumerate(
     #     label_name
     # ):  # convert string labels to number (0,1,2....)
     #     Y = np.where(Y == label, index, Y)
-    #min max scaling
-    newY=[0]*len(y_train)
+    # min max scaling
+    newY = [0]*len(y_train)
     divided = 0
+
     for i in range(len(y_train)):
-        divided= math.pow(10,(1 + math.floor( math.log10( y_train[i] ) )))
-        newY[i]=y_train[i]/ divided
-    y_train=np.array(newY)
-    
-    newY=[0]*len(y_test)
+        divided = math.pow(10, (1 + math.floor(math.log10(y_train[i]))))
+        newY[i] = y_train[i] / divided
+    y_train = np.array(newY)
+
+    newY = [0]*len(y_test)
     divided = 0
     for i in range(len(y_test)):
-        divided= math.pow(10,(1 + math.floor( math.log10( y_test[i] ) )))
-        newY[i]=y_test[i]/ divided
-    y_test=np.array(newY)
-    
+        divided = math.pow(10, (1 + math.floor(math.log10(y_test[i]))))
+        newY[i] = y_test[i] / divided
+    y_test = np.array(newY)
+
     # if not Y.all():
     #     Y += 1  # 0,1,2,3.... labels -> 1,2,3,4... labels
-    
-    #Y = [i/100 for i in Y]
-    gaussianKDETrain=sc.gaussian_kde(y_train, bw_method=0.2)
-    gaussianKDETest=sc.gaussian_kde(y_test, bw_method=0.2)
-    return  X_train, X_test, y_train, y_test, feature_name, label_name_train, label_name_test, patient_name, gaussianKDETrain,gaussianKDETest , divided
+
+    # Y = [i/100 for i in Y]
+    gaussianKDETrain = sc.gaussian_kde(y_train, bw_method=0.2)
+    gaussianKDETest = sc.gaussian_kde(y_test, bw_method=0.2)
+    return X_train, X_test, y_train, y_test, feature_name, label_name_train, label_name_test, patient_name, gaussianKDETrain, gaussianKDETest, divided
+
+
+def ReadDataCV_surv(
+    file_name, test_size=0.2, doScale=True, doLog=True, doRowNorm=False
+):
+    try:
+        data_pd = pd.read_csv(
+            "data/" + str(file_name),
+            delimiter=";",
+            decimal=",",
+            header=0,
+            encoding="ISO-8859-1",
+            low_memory=False,
+        )
+    except:
+        data_pd = pd.read_csv(
+            "datas/" + str(file_name),
+            delimiter=";",
+            decimal=",",
+            header=0,
+            encoding="ISO-8859-1",
+            low_memory=False,
+        )
+
+    X = (data_pd.iloc[2:, 1:].values.astype(float)).T
+    # apply StandardScaler to X
+    scaler = StandardScaler()
+    scaler.fit(X)
+    X = scaler.transform(X)
+    Y = data_pd.iloc[:2, 1:].values.astype(float).T
+
+    col = data_pd.columns.to_list()
+    if col[0] != "Name":
+        col[0] = "Name"
+    data_pd.columns = col
+
+    # split 80%-20%
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, Y, test_size=test_size, random_state=42)
+    y_train = y_train.T
+    y_test = y_test.T
+    print(X_train.shape, X_test.shape)
+    print(y_train.shape, y_test.shape)
+
+    feature_name = data_pd["Name"].values.astype(str)[2:]
+    label_name_train = np.unique(y_train)
+    label_name_test = np.unique(y_test)
+    patient_name = data_pd.columns[1:]
+    # Do standardization
+    if doLog:
+        X_train = np.log(abs(X_train + 1))  # Transformation
+        X_test = np.log(abs(X_test + 1))  # Transformation
+
+    X_train = X_train - np.mean(X_train, axis=0)
+    X_test = X_test - np.mean(X_test, axis=0)
+    if doScale:
+        X_train = scale(X_train, axis=0)  # Standardization along rows
+        X_test = scale(X_test, axis=0)  # Standardization along rows
+
+    if doRowNorm:
+        X_train = X_train - np.mean(X_train, axis=1, keepdims=True)
+        X_test = X_test - np.mean(X_test, axis=1, keepdims=True)
+
+    # for index, label in enumerate(
+    #     label_name
+    # ):  # convert string labels to number (0,1,2....)
+    #     Y = np.where(Y == label, index, Y)
+    # min max scaling
+
+    gaussianKDETrain = sc.gaussian_kde(y_train, bw_method=0.2)
+    gaussianKDETest = sc.gaussian_kde(y_test, bw_method=0.2)
+    return X_train, X_test, y_train, y_test, feature_name, label_name_train, label_name_test, patient_name, gaussianKDETrain, gaussianKDETest, 1
 
 
 if __name__ == "__main__":
     print("This is just a file containing functions, so nothing happened.")
-

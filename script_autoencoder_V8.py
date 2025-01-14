@@ -42,7 +42,7 @@ Results_stat
     -Predicted labels on test set with confidence scores
     -Top features     
 """
-#%%
+# %%
 import os
 
 import time
@@ -60,12 +60,12 @@ import functions.functions_torch_V8 as ft
 import functions.functions_network_pytorch as fnp
 
 
-#%%
+# %%
 
 if __name__ == "__main__":
 
     ######## Parameters ########
-    start_time= time.time()
+    start_time = time.time()
     # Set seed
     SEEDS = [5]
 
@@ -73,7 +73,7 @@ if __name__ == "__main__":
     DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     nfolds = 4  # Number of folds for the cross-validation process
-    N_EPOCHS = 30  # Number of epochs for the first descent
+    N_EPOCHS = 100  # Number of epochs for the first descent
     N_EPOCHS_MASKGRAD = 30  # Number of epochs for training masked gradient
     LR = 0.0005  # Learning rate
     BATCH_SIZE = 4  # Optimize the trade off between accuracy and computational time
@@ -82,34 +82,34 @@ if __name__ == "__main__":
     # unit scaling of the input data
     doScale = True
     # log transform of the input data
-    doLog = True
+    doLog = False
 
     # loss function for reconstruction
     criterion_reconstruction = nn.SmoothL1Loss(reduction="sum")  # SmoothL1Loss
     # criterion_reconstruction = nn.MSELoss(  reduction='sum'  ) # MSELoss
-   
 
     # Classification
     # Weights for each class
-   
-    class_weights = [1,1]
+
+    class_weights = [1, 1]
     # Loss function
-    criterion_classification = nn.CrossEntropyLoss(reduction="sum", weight=torch.Tensor(class_weights).to(DEVICE))
-    
-    #criterion_classification = nn.MSELoss(reduction="sum")
+    criterion_classification = nn.CrossEntropyLoss(
+        reduction="sum", weight=torch.Tensor(class_weights).to(DEVICE))
 
-    ## Dataset choice
-    #file_name = "LUNG.csv"
-    file_name = "HIF2.csv"
-   
+    # criterion_classification = nn.MSELoss(reduction="sum")
 
-    ## Choose Architecture
-    #net_name = 'LeNet'
+    # Dataset choice
+    # file_name = "LUNG.csv"
+    # file_name = "HIF2.csv"
+    file_name = "1.csv"
+
+    # Choose Architecture
+    # net_name = 'LeNet'
     net_name = "netBio"
-    #net_name = 'FAIR'
-    
-    #Choose if normalisation layer in the network 
-    norm = False 
+    # net_name = 'FAIR'
+
+    # Choose if normalisation layer in the network
+    norm = False
     n_hidden = 100  # amount of neurons on netbio's hidden layer
 
     # Do pca or t-SNE
@@ -121,48 +121,48 @@ if __name__ == "__main__":
     # Do projection on the decoder part or not
     DO_PROJ_DECODER = False
 
-    ETA=0.25
-    
+    ETA = 0.25
+
     GRADIENT_MASK = True  # Whether to do a second descent
     if GRADIENT_MASK:
         run_model = "ProjectionLastEpoch"
 
-    ## Choose projection function
+    # Choose projection function
     if not GRADIENT_MASK:
         TYPE_PROJ = "No_proj"
         TYPE_PROJ_NAME = "No_proj"
     else:
 
-        #TYPE_PROJ = ft.proj_l1ball  # projection l1
-        #TYPE_PROJ = ft.bilevel_proj_l11ball  # bilevel projection l11 (col-wise zeros)
-        #TYPE_PROJ = ft.proj_l11ball # Bilevel L11 projection
-        #TYPE_PROJ = ft.proj_l21ball   # Bilevel projection l21
-        #TYPE_PROJ = ft.proj_l1infball  # projection l1,inf 
+        # TYPE_PROJ = ft.proj_l1ball  # projection l1
+        # TYPE_PROJ = ft.bilevel_proj_l11ball  # bilevel projection l11 (col-wise zeros)
+        # TYPE_PROJ = ft.proj_l11ball # Bilevel L11 projection
+        # TYPE_PROJ = ft.proj_l21ball   # Bilevel projection l21
+        # TYPE_PROJ = ft.proj_l1infball  # projection l1,inf
         TYPE_PROJ = ft.bilevel_proj_l1Inftyball  # projection bilevel l1,inf
-        
+
         TYPE_PROJ_NAME = TYPE_PROJ.__name__
-        
-    #TYPE_ACTIVATION = "tanh"
-    #TYPE_ACTIVATION = "gelu"
-    #TYPE_ACTIVATION = "relu"
+
+    # TYPE_ACTIVATION = "tanh"
+    # TYPE_ACTIVATION = "gelu"
+    # TYPE_ACTIVATION = "relu"
     TYPE_ACTIVATION = "silu"
 
-    AXIS = 1  #  1 for columns (features), 0 for rows (neurons)
+    AXIS = 1  # 1 for columns (features), 0 for rows (neurons)
     TOL = 1e-3  # error margin for the L1inf algorithm and gradient masking
 
     bW = 0.5  # Kernel size for distribution plots
 
     DoTopGenes = True  # Compute feature rankings
-    
-    DoTopFeatures = True # Compute features selected by the projection with a norm
-    
-    DoSparsity= True # Show the sparsity of the SAE
+
+    DoTopFeatures = True  # Compute features selected by the projection with a norm
+
+    DoSparsity = True  # Show the sparsity of the SAE
 
     # Save Results or not
     SAVE_FILE = True
 
     ######## Main routine ########
-    
+
     # Output Path
     outputPath = (
         "results_stat"
@@ -182,8 +182,6 @@ if __name__ == "__main__":
     feature_len = len(feature_names)
     class_len = len(label_name)
     print(f"Number of features: {feature_len}, Number of classes: {class_len}")
-    
-    
 
     # matrices to store accuracies
     accuracy_train = np.zeros((nfolds * len(SEEDS), class_len + 1))
@@ -191,17 +189,14 @@ if __name__ == "__main__":
     # matrices to store metrics
     data_train = np.zeros((nfolds * len(SEEDS), 7))
     data_test = np.zeros((nfolds * len(SEEDS), 7))
-    #matrices to store sparsity
-    sparsity_matrix= np.zeros((nfolds * len(SEEDS), 1))
-    
+    # matrices to store sparsity
+    sparsity_matrix = np.zeros((nfolds * len(SEEDS), 1))
+
     correct_prediction = []
     seed_idx = 0
-    
-    
-    
+
     for seed in SEEDS:
-        
-        
+
         np.random.seed(seed)
         torch.manual_seed(seed)
         torch.cuda.manual_seed(seed)
@@ -212,7 +207,8 @@ if __name__ == "__main__":
                 X, Y, patient_name, BATCH_SIZE, fold_idx, seed
             )
             print(
-                "Len of train set: {}, Len of test set: {}".format(train_len, test_len)
+                "Len of train set: {}, Len of test set: {}".format(
+                    train_len, test_len)
             )
             print("----------- Start fold ", fold_idx, "----------------")
             # Define the SEED to fix the initial parameters
@@ -222,13 +218,17 @@ if __name__ == "__main__":
 
             # run AutoEncoder
             if net_name == "LeNet":
-                net = ft.LeNet_300_100(n_inputs=feature_len, n_outputs=class_len, activation=TYPE_ACTIVATION, norm = norm).to(
+                net = ft.LeNet_300_100(n_inputs=feature_len, n_outputs=class_len, activation=TYPE_ACTIVATION, norm=norm).to(
                     DEVICE
                 )  # LeNet
             if net_name == "netBio":
-                net = ft.netBio(feature_len, class_len, n_hidden, activation=TYPE_ACTIVATION, norm = norm).to(DEVICE)  # netBio
+                net = ft.netBio(feature_len, class_len, n_hidden,
+                                # netBio
+                                activation=TYPE_ACTIVATION, norm=norm).to(DEVICE)
             if net_name == "FAIR":
-                net = ft.FairAutoEncoder(feature_len, class_len,n_hidden =n_hidden, activation=TYPE_ACTIVATION, norm = norm).to(DEVICE)  # FAIR
+                net = ft.FairAutoEncoder(feature_len, class_len, n_hidden=n_hidden,
+                                         # FAIR
+                                         activation=TYPE_ACTIVATION, norm=norm).to(DEVICE)
 
             weights_entry, spasity_w_entry = fnp.weights_and_sparsity(net, TOL)
 
@@ -267,17 +267,18 @@ if __name__ == "__main__":
             )
             labelpredict = data_encoder[:, :-1].max(1)[1].cpu().numpy()
 
-
-            weights_interim_enc , _ = fnp.weights_and_sparsity(trained_net.encoder, TOL)
-            weights_interim_dec , _ = fnp.weights_and_sparsity(trained_net.decoder, TOL)
-
+            weights_interim_enc, _ = fnp.weights_and_sparsity(
+                trained_net.encoder, TOL)
+            weights_interim_dec, _ = fnp.weights_and_sparsity(
+                trained_net.decoder, TOL)
 
             # Do masked gradient
             if GRADIENT_MASK:
-                #print("\n--------Running with masked gradient-----")
-                #print("-----------------------")
+                # print("\n--------Running with masked gradient-----")
+                # print("-----------------------")
 
-                prev_data = [param.data for param in list(trained_net.parameters())]
+                prev_data = [param.data for param in list(
+                    trained_net.parameters())]
 
                 # Get initial network and set zeros
                 # Recall the SEED to get the initial parameters
@@ -287,13 +288,17 @@ if __name__ == "__main__":
 
                 # run AutoEncoder
                 if net_name == "LeNet":
-                    net = ft.LeNet_300_100(n_inputs=feature_len, n_outputs=class_len, activation=TYPE_ACTIVATION, norm = norm).to(
+                    net = ft.LeNet_300_100(n_inputs=feature_len, n_outputs=class_len, activation=TYPE_ACTIVATION, norm=norm).to(
                         DEVICE
                     )  # LeNet
                 if net_name == "netBio":
-                    net = ft.netBio(feature_len, class_len, n_hidden, activation=TYPE_ACTIVATION, norm = norm).to(DEVICE)  # netBio
+                    net = ft.netBio(feature_len, class_len, n_hidden,
+                                    # netBio
+                                    activation=TYPE_ACTIVATION, norm=norm).to(DEVICE)
                 if net_name == "FAIR":
-                    net = ft.FairAutoEncoder(feature_len, class_len,n_hidden = n_hidden, activation=TYPE_ACTIVATION, norm = norm).to(DEVICE)  # FAIR
+                    net = ft.FairAutoEncoder(
+                        # FAIR
+                        feature_len, class_len, n_hidden=n_hidden, activation=TYPE_ACTIVATION, norm=norm).to(DEVICE)
 
                 optimizer = torch.optim.Adam(trained_net.parameters(), lr=LR)
                 lr_scheduler = torch.optim.lr_scheduler.StepLR(
@@ -348,19 +353,18 @@ if __name__ == "__main__":
                     DO_PROJ_MIDDLE,
                     DO_PROJ_DECODER,
                     ETA,
-                    AXIS=AXIS,typeEpoch=run_model
+                    AXIS=AXIS, typeEpoch=run_model
                 )
-                    
-                    
+
                 end_time = time.time()
 
                 # Calculate and print the execution time
                 execution_time = end_time - start_time
-                print(f"Execution time for training : {execution_time} seconds for fold {fold_idx}")
-                #print("\n--------Finised masked gradient-----")
-                #print("-----------------------")
-                
-                
+                print(f"Execution time for training : {
+                      execution_time} seconds for fold {fold_idx}")
+                # print("\n--------Finised masked gradient-----")
+                # print("-----------------------")
+
             data_encoder = data_encoder.cpu().detach().numpy()
             data_decoded = data_decoded.cpu().detach().numpy()
 
@@ -420,7 +424,8 @@ if __name__ == "__main__":
                 labels_encoder, labelpredict
             )
             data_test[seed_idx * 4 + fold_idx, 1] = metrics.adjusted_rand_score(
-                Ytest, data_encoder_test[:, :-1].max(1)[1].detach().cpu().numpy()
+                Ytest, data_encoder_test[:, :-
+                                         1].max(1)[1].detach().cpu().numpy()
             )
 
             # AMI Score
@@ -428,7 +433,8 @@ if __name__ == "__main__":
                 labels_encoder, labelpredict
             )
             data_test[seed_idx * 4 + fold_idx, 2] = metrics.adjusted_mutual_info_score(
-                Ytest, data_encoder_test[:, :-1].max(1)[1].detach().cpu().numpy()
+                Ytest, data_encoder_test[:, :-
+                                         1].max(1)[1].detach().cpu().numpy()
             )
             # AUC Score
             if class_len == 2:
@@ -436,7 +442,8 @@ if __name__ == "__main__":
                     labels_encoder, labelpredict
                 )
                 data_test[seed_idx * 4 + fold_idx, 3] = metrics.roc_auc_score(
-                    Ytest, data_encoder_test[:, :-1].max(1)[1].detach().cpu().numpy()
+                    Ytest, data_encoder_test[:, :-
+                                             1].max(1)[1].detach().cpu().numpy()
                 )
 
             # F1 precision recall
@@ -454,9 +461,9 @@ if __name__ == "__main__":
 
             # method = 'Shap'   # (SHapley Additive exPlanation) needs a nb_samples
             nb_samples = 300  # Randomly choose nb_samples to calculate their Shap Value, time vs nb_samples seems exponential
-            #method = 'Captum_ig'   # Integrated Gradients
+            # method = 'Captum_ig'   # Integrated Gradients
             method = "Captum_dl"  # Deeplift
-            #method = 'Captum_gs'  # GradientShap
+            # method = 'Captum_gs'  # GradientShap
 
             if DoTopGenes:
                 tps1 = time.perf_counter()
@@ -475,7 +482,7 @@ if __name__ == "__main__":
                         TOL
                     )
                     df_topGenes.index = df_topGenes.iloc[:, 0]
-                    
+
                     print("topGenes finished")
                     tps2 = time.perf_counter()
                 else:
@@ -495,48 +502,51 @@ if __name__ == "__main__":
                     print("topGenes finished")
                     df = pd.read_csv(
                         "{}{}_topGenes_{}_{}.csv".format(
-                            outputPath, str(TYPE_PROJ_NAME), method, str(nb_samples)
+                            outputPath, str(
+                                TYPE_PROJ_NAME), method, str(nb_samples)
                         ),
                         sep=";",
                         header=0,
                         index_col=0,
                     )
-                    
+
                     df_topGenes.index = df_topGenes.iloc[:, 0]
                     df_topGenes = df.join(df_topGenes.iloc[:, 1], lsuffix="_",)
 
                 df_topGenes.to_csv(
                     "{}{}_topGenes_{}_{}.csv".format(
-                        outputPath, str(TYPE_PROJ_NAME), method, str(nb_samples)
+                        outputPath, str(
+                            TYPE_PROJ_NAME), method, str(nb_samples)
                     ),
                     sep=";",
                 )
                 tps2 = time.perf_counter()
                 print("Execution time topGenes  : ", tps2 - tps1)
-                
-            if DoSparsity: 
+
+            if DoSparsity:
                 mat_in = net.state_dict()["encoder.0.weight"]
                 mat_col_sparsity = ft.sparsity_col(mat_in, device=DEVICE)
-                sparsity_matrix[seed_idx * 4+ fold_idx, 0] = mat_col_sparsity
-                
+                sparsity_matrix[seed_idx * 4 + fold_idx, 0] = mat_col_sparsity
+
             if DoTopFeatures:
-                
-                weightsF, spasity_w = fnp.weights_and_sparsity(net.encoder, TOL)
+
+                weightsF, spasity_w = fnp.weights_and_sparsity(
+                    net.encoder, TOL)
                 layer_list = [x for x in weightsF.values()]
-                #Chercher les colonnes qui non pas que des 0
-                non_zero_columns =~np.all(layer_list[0] == 0, axis=0)
+                # Chercher les colonnes qui non pas que des 0
+                non_zero_columns = ~np.all(layer_list[0] == 0, axis=0)
                 indices_non_zero_columns = np.where(non_zero_columns)[0]
                 featuresSelected = feature_names[indices_non_zero_columns]
-                normL =LA.norm(layer_list[0], 2, axis=0)
-                normL = normL/ max(normL)
+                normL = LA.norm(layer_list[0], 2, axis=0)
+                normL = normL / max(normL)
                 normFeaturesSelected = normL[indices_non_zero_columns]
-                #dfFeatureSelected = pd.DataFrame(featuresSelected, columns=['Fold'+str(fold_idx)])
+                # dfFeatureSelected = pd.DataFrame(featuresSelected, columns=['Fold'+str(fold_idx)])
                 dfFeatureSelected = pd.DataFrame({
-                        'Fold': featuresSelected,
-                        'NormL2 ': normFeaturesSelected
-                    })
+                    'Fold': featuresSelected,
+                    'NormL2 ': normFeaturesSelected
+                })
 
-                if fold_idx!=0:
+                if fold_idx != 0:
                     df = pd.read_csv(
                         "{}{}_topFeatures_NormL2.csv".format(
                             outputPath, str(TYPE_PROJ_NAME)
@@ -546,11 +556,10 @@ if __name__ == "__main__":
                         index_col=0,
                     )
                     dfFeatureSelected = df.merge(dfFeatureSelected.iloc[:, 0:], how='left',
-                            on = 'Fold', suffixes= (f"{fold_idx-1}", f"{fold_idx}"))
-                dfFeatureSelected.fillna(0, inplace = True)
+                                                 on='Fold', suffixes=(f"{fold_idx-1}", f"{fold_idx}"))
+                dfFeatureSelected.fillna(0, inplace=True)
                 dfFeatureSelected.to_csv('{}{}_topFeatures_NormL2.csv'.format(outputPath,
-                            str(TYPE_PROJ_NAME)),sep=";")
-                
+                                                                              str(TYPE_PROJ_NAME)), sep=";")
 
         if seed == SEEDS[0]:
             df_softmax = softmax
@@ -612,16 +621,17 @@ if __name__ == "__main__":
             else:
                 df = pd.read_csv(
                     "{}{}_topGenes_Mean_{}_{}.csv".format(
-                        outputPath, str(TYPE_PROJ_NAME), method, str(nb_samples)
+                        outputPath, str(
+                            TYPE_PROJ_NAME), method, str(nb_samples)
                     ),
                     sep=";",
                     header=0,
                     index_col=0,
                 )
-                
+
                 df_topGenes.index = df_topGenes.iloc[:, 0]
-                df_topGenes_mean = df.join(df_topGenes.iloc[:, 1], lsuffix=seed)
-                
+                df_topGenes_mean = df.join(
+                    df_topGenes.iloc[:, 1], lsuffix=seed)
 
             df_topGenes_mean.to_csv(
                 "{}{}_topGenes_Mean_{}_{}.csv".format(
@@ -629,7 +639,7 @@ if __name__ == "__main__":
                 ),
                 sep=";",
             )
-        
+
         if DoTopFeatures:
             df = pd.read_csv(
                 "{}{}_topFeatures_NormL2.csv".format(
@@ -655,7 +665,8 @@ if __name__ == "__main__":
                 ],
             )
             df_topFeatures = df
-            df_topFeatures = df_topFeatures.sort_values(by="Mean", ascending=False)
+            df_topFeatures = df_topFeatures.sort_values(
+                by="Mean", ascending=False)
             df_topFeatures = df_topFeatures.reindex(
                 columns=[
                     "Features",
@@ -674,7 +685,7 @@ if __name__ == "__main__":
                 sep=";",
                 index=0,
             )
-    
+
             if seed == SEEDS[0]:
                 df_topFeatures_mean = df_topFeatures.iloc[:, 0:2]
                 df_topFeatures_mean.index = df_topFeatures.iloc[:, 0]
@@ -688,11 +699,11 @@ if __name__ == "__main__":
                     index_col=0,
                 )
                 df_topFeatures.index = df_topFeatures.iloc[:, 0]
-                
+
                 df_topFeatures_mean = df.merge(df_topFeatures.iloc[:, 1], how='left',
-                        on = 'Features', suffixes= (f"{seed-1}", f"{seed}"))
-                
-                #df.join(df_topFeatures.iloc[:, 1], lsuffix=seed)
+                                               on='Features', suffixes=(f"{seed-1}", f"{seed}"))
+
+                # df.join(df_topFeatures.iloc[:, 1], lsuffix=seed)
 
             df_topFeatures_mean.to_csv(
                 "{}{}_topFeatures_Mean_NormL2.csv".format(
@@ -724,32 +735,33 @@ if __name__ == "__main__":
     df_metricsTrain_classif = df_metricsTrain[classification_metrics]
     df_metricsTest_clustering = df_metricsTest[clustering_metrics]
     df_metricsTest_classif = df_metricsTest[classification_metrics]
-    
-    
 
-    #print("\nMetrics Train")
+    # print("\nMetrics Train")
     # print(df_metricsTrain_clustering)
-    #print(df_metricsTrain_classif)
+    # print(df_metricsTrain_classif)
     print("\nMetrics Test")
     # print(df_metricsTest_clustering)
     print(df_metricsTest_classif)
-    
+
     if DoSparsity:
-        #make df for the sparsity:
+        # make df for the sparsity:
         columns = (
-                ["Sparsity"]
-            )
-        ind_df = ["Fold " + str(x + 1) for x in range(nfolds* len(SEEDS))]
-    
-        df_sparcity = pd.DataFrame(sparsity_matrix, index=ind_df, columns=columns)
+            ["Sparsity"]
+        )
+        ind_df = ["Fold " + str(x + 1) for x in range(nfolds * len(SEEDS))]
+
+        df_sparcity = pd.DataFrame(
+            sparsity_matrix, index=ind_df, columns=columns)
         df_sparcity.loc["Mean"] = df_sparcity.apply(lambda x: x.mean())
         df_sparcity.loc["Std"] = df_sparcity.apply(lambda x: x.std())
         print('\n Sparsity on the encoder')
         print(df_sparcity)
-        print(f'\n On average we have {round(100-df_sparcity.loc["Mean", "Sparsity"])}% features selected, thus {round(((100- df_sparcity.loc["Mean", "Sparsity"])/100)*feature_len)} features')
+        print(f'\n On average we have {round(100-df_sparcity.loc["Mean", "Sparsity"])}% features selected, thus {
+              round(((100 - df_sparcity.loc["Mean", "Sparsity"])/100)*feature_len)} features')
 
     # Reconstruction by using the centers in latent space and datas after interpolation
-    center_mean, center_distance = ft.Reconstruction(0.2, data_encoder, net, class_len)
+    center_mean, center_distance = ft.Reconstruction(
+        0.2, data_encoder, net, class_len)
 
     # Do pca,tSNE for encoder data
     if Do_pca and Do_tSNE:
@@ -771,7 +783,8 @@ if __name__ == "__main__":
         df_meanstd = df_std / df_mean
         col_seed = ["Seed " + str(i) for i in SEEDS]
         df = pd.DataFrame(
-            np.concatenate((df.values[:, :], df_mean, df_std, df_meanstd), axis=1),
+            np.concatenate((df.values[:, :], df_mean,
+                           df_std, df_meanstd), axis=1),
             columns=["Features"] + col_seed + ["Mean", "Std", "Mstd"],
         )
         df_topGenes = df
@@ -786,7 +799,7 @@ if __name__ == "__main__":
             sep=";",
             index=0,
         )
-        
+
     if DoTopFeatures:
         df = pd.read_csv(
             "{}{}_topFeatures_Mean_NormL2.csv".format(
@@ -802,7 +815,8 @@ if __name__ == "__main__":
         df_meanstd = df_std / df_mean
         col_seed = ["Seed " + str(i) for i in SEEDS]
         df = pd.DataFrame(
-            np.concatenate((df.values[:, :], df_mean, df_std, df_meanstd), axis=1),
+            np.concatenate((df.values[:, :], df_mean,
+                           df_std, df_meanstd), axis=1),
             columns=["Features"] + col_seed + ["Mean", "Std", "Mstd"],
         )
         df_topFeatures = df
@@ -843,7 +857,7 @@ if __name__ == "__main__":
                     label="Proba class 1",
                 )
                 # sns.kdeplot(distrib, bw=0.1, fill=True, shade="True")
-    
+
             lab += 1
         plt.legend(loc="upper left")
         plt.xlabel("")
@@ -861,7 +875,8 @@ if __name__ == "__main__":
     #     spasity_percentage[keys] = spasity_w[keys] * 100
     # print("spasity % of all layers \n", spasity_percentage)
 
-    weights_decoder, spasity_w_decoder = fnp.weights_and_sparsity(net.decoder, TOL)
+    weights_decoder, spasity_w_decoder = fnp.weights_and_sparsity(
+        net.decoder, TOL)
     # spasity_percentage_decoder = {}
     # for keys in spasity_w_decoder.keys():
     #     spasity_percentage_decoder[keys] = spasity_w_decoder[keys] * 100
@@ -875,13 +890,17 @@ if __name__ == "__main__":
     # print("Line sparsity of input matrix: \n", mat_in_sparsity)
     layer_list = [x for x in weights.values()]
     layer_list_decoder = [x for x in weights_decoder.values()]
-    if norm ==True :
-       layer_list_decoder = [np.array(layer_list_decoder[2]).T, np.array(layer_list_decoder[0]).T]
+    if norm == True:
+        layer_list_decoder = [
+            np.array(layer_list_decoder[2]).T, np.array(layer_list_decoder[0]).T]
     else:
-       layer_list_decoder = [np.array(layer_list_decoder[1]).T, np.array(layer_list_decoder[0]).T]
+        layer_list_decoder = [
+            np.array(layer_list_decoder[1]).T, np.array(layer_list_decoder[0]).T]
     titile_list = [x for x in spasity_w.keys()]
-    print(f"After Projection, Sum is: {np.sum(np.abs(weights_interim_enc['0.weight']))}")
-    print(f"After Projection, Sum is: {np.sum(np.abs(weights_interim_dec['2.weight']))}")
+    print(f"After Projection, Sum is: {
+          np.sum(np.abs(weights_interim_enc['0.weight']))}")
+    print(f"After Projection, Sum is: {
+          np.sum(np.abs(weights_interim_dec['2.weight']))}")
 
     ft.show_img(layer_list, file_name)
     ft.show_img(layer_list_decoder, file_name)
@@ -891,7 +910,8 @@ if __name__ == "__main__":
         file_name.split(".")[0] + "_Loss_MaskGrad.npy"
     ):
         loss_no_proj = np.load(file_name.split(".")[0] + "_Loss_No_proj.npy")
-        loss_with_proj = np.load(file_name.split(".")[0] + "_Loss_MaskGrad.npy")
+        loss_with_proj = np.load(file_name.split(".")[
+                                 0] + "_Loss_MaskGrad.npy")
         plt.figure()
         plt.title(file_name.split(".")[0] + " Loss")
         plt.xlabel("Epoch")
@@ -910,14 +930,11 @@ if __name__ == "__main__":
         if DoSparsity:
             df_sparcity.to_csv(
                 "{}{}_sparsity.csv".format(outputPath, str(TYPE_PROJ_NAME)), sep=";"
-                )
+            )
 
         print("Save topGenes results to: ' {} ' ".format(outputPath))
-    end_time= time.time()
-    execution_time=end_time-start_time
+    end_time = time.time()
+    execution_time = end_time-start_time
     print(f"Execution time: {execution_time} seconds")
 
     print("Save topGenes results to: ' {} ' ".format(outputPath))
-    
-    
-
