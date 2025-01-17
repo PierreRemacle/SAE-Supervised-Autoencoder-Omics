@@ -2054,12 +2054,12 @@ def packClassResult(accuracy_train, accuracy_test, fold_nb, label_name):
     """ Transform the accuracy of each class in different fold to DataFrame
     Attributes:
         accuracy_train: List, class_train in different fold
-        accuracy_test: List, class_test in different fold
-        fold_nb: number of fold
+        accuracy_test: List, class_test in different fold 
+        fold_nb: number of fold  
         label_name: name of different classes(Ex: Class 1, Class 2)
     Return:
-        df_accTrain: dataframe, training accuracy per Class in different fold
-        df_acctest: dataframe, testing accuracy per Class in different fold
+        df_accTrain: dataframe, training accuracy per Class in different fold 
+        df_acctest: dataframe, testing accuracy per Class in different fold     
     """
     columns = ["Global"] + ["Class " + str(x) for x in label_name]
     ind_df = ["Fold " + str(x + 1) for x in range(fold_nb)]
@@ -2075,7 +2075,7 @@ def packClassResult(accuracy_train, accuracy_test, fold_nb, label_name):
 
 def packMetric(data, fold_nb):
     columns = (
-        ["MSE"] + ["RMSE"] + ["MAE"]+["Negative gap"] + ["Positive gap"]
+        ["MSE"] + ["RMSE"] + ["MAE"]+["Negative gap"] + ["Positive gap"]+["WD"]
     )
     ind_df = ["Fold " + str(x + 1) for x in range(fold_nb)]
 
@@ -2090,12 +2090,12 @@ def packMetricsResult(data_train, data_test, fold_nb):
     """ Transform the accuracy of each class in different fold to DataFrame
     Attributes:
         accuracy_train: List, class_train in different fold
-        accuracy_test: List, class_test in different fold
-        fold_nb: number of fold
+        accuracy_test: List, class_test in different fold 
+        fold_nb: number of fold  
         label_name: name of different classes(Ex: Class 1， Class 2)
     Return:
-        df_accTrain: dataframe, training accuracy per Class in different fold
-        df_acctest: dataframe, testing accuracy per Class in different fold
+        df_accTrain: dataframe, training accuracy per Class in different fold 
+        df_acctest: dataframe, testing accuracy per Class in different fold     
     """
     df_metricsTrain = packMetric(data_train, fold_nb)
     df_metricsTest = packMetric(data_test, fold_nb)
@@ -2663,6 +2663,13 @@ def ReadDataCV_surv(
             encoding="ISO-8859-1",
             low_memory=False,
         )
+
+    to_drop = []
+    for i, name in enumerate(data_pd["Name"]):
+        print(name, i)
+        if name in ["Exitus", "Exitus Date", "Seroteca-1", "Seroteca-2", "Seroteca-3", "Seroteca-1 Date", "Seroteca-2 Date", "Seroteca-3 Date"]:
+            to_drop.append(i)
+    data_pd = data_pd.drop(to_drop)
 
     X = (data_pd.iloc[2:, 1:].values.astype(float)).T
     # apply StandardScaler to X

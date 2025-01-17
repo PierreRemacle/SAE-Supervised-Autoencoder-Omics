@@ -1,0 +1,99 @@
+Features;Features;Mean
+Current ICU Situation;Current ICU Situation;1.0
+Age;Age;0.5313450675
+New Valvulopathy;New Valvulopathy;0.476134555
+Mechanical Assistance Bridge Date;Mechanical Assistance Bridge Date;0.47250008749999994
+Mechanical Assistance Bridge;Mechanical Assistance Bridge;0.46837612500000003
+New BE MCP Date;New BE MCP Date;0.46671874999999996
+New BE MCP;New BE MCP;0.46671874999999996
+Previous Structural Intervention;Previous Structural Intervention;0.4656561325
+New Valvulopathy Date;New Valvulopathy Date;0.4646972875
+Previous Structural Intervention Date;Previous Structural Intervention Date;0.4597024025
+Hemodialysis DP;Hemodialysis DP;0.45858552499999994
+Mechanical Assistance Destination Date;Mechanical Assistance Destination Date;0.45830079
+New Dialysis Hemodialysis;New Dialysis Hemodialysis;0.4578866525
+Previous Coronary Intervention Date;Previous Coronary Intervention Date;0.45440653500000006
+Mechanical Assistance;Mechanical Assistance;0.4533774725
+Technique_11.0;Technique_11.0;0.45239165499999995
+Mechanical Assistance Destination;Mechanical Assistance Destination;0.45081295
+Peritoneal Dialysis DP;Peritoneal Dialysis DP;0.45042700999999996
+New Dialysis Start Date;New Dialysis Start Date;0.450119325
+New Dialysis Peritoneal;New Dialysis Peritoneal;0.4454317175
+Technique_2.0;Technique_2.0;0.43469789
+New Dialysis;New Dialysis;0.43254733
+Previous CT Date;Previous CT Date;0.42228724500000003
+Previous CT;Previous CT;0.42153199500000005
+Race_31;Race_31;0.409691665
+Previous Coronary Intervention;Previous Coronary Intervention;0.37779340499999997
+Evolution Time;Evolution Time;0.3555850625
+Previous Dialysis Date;Previous Dialysis Date;0.35519772499999996
+New IVP Date;New IVP Date;0.33864657
+New MI Date;New MI Date;0.327930725
+Neoplasia;Neoplasia;0.32308658
+New Other Surgery Date;New Other Surgery Date;0.32134455500000003
+Coronary Surgery;Coronary Surgery;0.31595359
+Previous Admissions;Previous Admissions;0.3131928425
+New Coronary Surgery Date;New Coronary Surgery Date;0.3117348775
+Race_14;Race_14;0.30832046750000003
+Valvular Percutaneous Intervention;Valvular Percutaneous Intervention;0.30554731749999997
+Previous Dialysis;Previous Dialysis;0.30005145
+New MI;New MI;0.29147554999999997
+Transplantation Date;Transplantation Date;0.2838850275
+New Conventional MCP Date;New Conventional MCP Date;0.2832965925
+Other Surgery;Other Surgery;0.26744559125
+Race_12;Race_12;0.24557904
+New Diabetes Date;New Diabetes Date;0.22912073
+Transplantation;Transplantation;0.22580415250000002
+First MI Date;First MI Date;0.2238866975
+Diabetes M;Diabetes M;0.22301995
+Procedure Centre;Procedure Centre;0.2052188625
+Previous Resynchronization Date;Previous Resynchronization Date;0.19788856249999998
+Alcoholism;Alcoholism;0.196661251
+Technique_4.0;Technique_4.0;0.19221560249999997
+Race_2;Race_2;0.18918694
+Previous Surgery Date;Previous Surgery Date;0.18045327
+Caregiver Type;Caregiver Type;0.1752589325
+Valvulopathy;Valvulopathy;0.16824838
+Smoking;Smoking;0.1662453425
+Conventional Pacemaker;Conventional Pacemaker;0.16605739549999998
+New Diabetes;New Diabetes;0.16500836000000002
+Height;Height;0.16446701
+Technique_3.0;Technique_3.0;0.164389595
+Aortic;Aortic;0.161847406
+Family Situation;Family Situation;0.15557602375000001
+OSA;OSA;0.153137085
+Tricuspid;Tricuspid;0.152612845
+HTN;HTN;0.1521331175
+Schooling Level;Schooling Level;0.1512550215
+Hypercholesterolemia;Hypercholesterolemia;0.149481345
+Peripheral Vascular Disease;Peripheral Vascular Disease;0.1491519825
+Previous Conventional MCP Date;Previous Conventional MCP Date;0.14484575325
+Caregiver;Caregiver;0.142952784
+COPD;COPD;0.141969451
+Race_32;Race_32;0.1384105075
+Valvular Surgery;Valvular Surgery;0.137174101
+Ischemic C;Ischemic C;0.1333190825
+CardioMEMS Date;CardioMEMS Date;0.13018059875
+Race_13;Race_13;0.12494364875
+Race_11;Race_11;0.1228092285
+Previous ICD;Previous ICD;0.120029039
+Previous Surgery;Previous Surgery;0.115284736
+New Valvular Surgery Date;New Valvular Surgery Date;0.109861954
+Mitral;Mitral;0.10587572699999999
+Percutaneous Intervention;Percutaneous Intervention;0.1047520025
+Previous MCP;Previous MCP;0.1037232565
+Ex-Smoking;Ex-Smoking;0.102039081
+EF;EF;0.10118730825000001
+Etiology;Etiology;0.0996786275
+New PCI Date;New PCI Date;0.0975780175
+New Resynchronization Date;New Resynchronization Date;0.0975041725
+New Resynchronization;New Resynchronization;0.09679119000000001
+Gender_D;Gender_D;0.09607692599999999
+Gender_H;Gender_H;0.0947013775
+CardioMEMS;CardioMEMS;0.09231406
+Ex-Alcoholism;Ex-Alcoholism;0.090925225
+Previous Resynchronization;Previous Resynchronization;0.0903510235
+New ICD Date;New ICD Date;0.08089726450000001
+Previous MI;Previous MI;0.08016751075
+Previous ICD Date;Previous ICD Date;0.074398225
+New ICD;New ICD;0.053001232499999995
