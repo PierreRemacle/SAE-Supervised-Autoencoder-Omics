@@ -2,9 +2,9 @@
 """
 
 
-Copyright   I3S CNRS UCA
+Copyright   I3S CNRS UCA 
 
-This code implement the cross validation Train Validate Test
+This code implement the cross validation Train Validate Test 
 
 https://scikit-learn.org/stable/modules/cross_validation.html
 
@@ -21,12 +21,11 @@ Loss(W) = ϕ( Ye , Y ) s.t. BP1,∞(W) ≤ η. (1)
 
 Where Y is the true  value and Ye is the estimate age by the neural network, ϕ is the error loss, W are the weights of the FCNN
 and BP1,∞ is the bi-level ℓ1,∞ projection.
-
+    
 """
 # %%
-from sksurv.metrics import concordance_index_censored
-import functions.functions_network_pytorch as fnp
-import functions.functions_torch_regression_V3 as ft
+import functions_.functions_network_pytorch as fnp
+import functions_.functions_torch_regression_V3 as ft
 import os
 
 import time
@@ -61,7 +60,7 @@ if __name__ == "__main__":
     DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     nfolds = 4  # Number of folds for the cross-validation process
-    N_EPOCHS = 100  # Number of epochs for the first descent
+    N_EPOCHS = 30  # Number of epochs for the first descent
     N_EPOCHS_MASKGRAD = 30  # Number of epochs for training masked gradient
     LR = 0.00005  # Learning rate
     BATCH_SIZE = 50  # Optimize the trade off between accuracy and computational time
@@ -190,7 +189,6 @@ if __name__ == "__main__":
             X, X_test, Y, y_test, feature_names, label_name_train, label_name_test, patient_name, gaussianKDE, gaussianKDETest, divided = ft.ReadDataCV_surv(
                 file_name, test_size=test_size, doScale=doScale, doLog=doLog,  doRowNorm=doRowNorm
             )
-            print(y_test)
 
             feature_len = len(feature_names)
             print(f"Number of features: {feature_len}")
@@ -278,19 +276,13 @@ if __name__ == "__main__":
                         survival_times = np.linspace(
                             np.min(durations), np.max(durations), 100)
                         brier_scores = ev.brier_score(survival_times)
-                        # Evaluate condordance index
-                        concordance_index = concordance_index_censored(
-                            events, durations, -hazards)
-                        print(f"Concordance Index: {concordance_index:.4f}")
+
                         plt.figure()
                         plt.plot(survival_times, brier_scores,
-                                 label="Brier Score after training")
-                        # add concordance_index to the plot
-                        plt.text(0.5, 0.5, f"Concordance Index: {
-                                 concordance_index:.4f}", fontsize=12)
+                                 label="Brier Score")
                         plt.xlabel("Time")
                         plt.ylabel("Brier Score")
-                        plt.title("Brier Score after training")
+                        plt.title("Brier Score Over Time")
                         plt.legend()
                         plt.show()
                         plt.savefig(f'brier_score_{seed}.png')
@@ -498,16 +490,10 @@ if __name__ == "__main__":
                         survival_times = np.linspace(
                             np.min(durations), np.max(durations), 100)
                         brier_scores = ev.brier_score(survival_times)
-                        # Evaluate condordance index
-                        concordance_index = ev.concordance_index()
-                        print(f"Concordance Index: {concordance_index:.4f}")
-                        plt.figure()
 
+                        plt.figure()
                         plt.plot(survival_times, brier_scores,
                                  label="Brier Score")
-                        # add concordance_index to the plot
-                        plt.text(0.5, 0.5, f"Concordance Index: {
-                                 concordance_index:.4f}", fontsize=12)
                         plt.xlabel("Time")
                         plt.ylabel("Brier Score")
                         plt.title("Brier Score Over Time")

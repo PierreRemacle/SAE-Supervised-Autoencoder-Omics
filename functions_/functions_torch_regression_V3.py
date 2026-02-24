@@ -5,7 +5,6 @@ Created on Wed Feb 28 10:23:43 2024
 @author: Nolwenn Peyratout
 """
 
-from lifelines import KaplanMeierFitter
 from sklearn.preprocessing import StandardScaler
 from sklearn.preprocessing import StandardScaler, scale as scale
 import time
@@ -34,8 +33,8 @@ from torch.multiprocessing import Pool
 from matplotlib.colors import ListedColormap
 from sklearn.model_selection import train_test_split
 
-import functions.functions_network_pytorch as fnp
-import functions.functions_DeepSurv as fds  # DeepSurv
+import functions_.functions_network_pytorch as fnp
+import functions_.functions_DeepSurv as fds  # DeepSurv
 import torchtuples as tt
 
 try:
@@ -1006,18 +1005,16 @@ class dnn(nn.Module):
         return x
 
 
-def plotGraph(y_data, x_data, y_label, x_label, title, horizontal=None, horizontal_label=None):
+def plotGraph(y_data, x_data, y_label, x_label, title, y_val=None):
     # Plot the data
     plt.plot(x_data, y_data)
-    if horizontal is not None:
-        plt.axhline(y=horizontal, color='r',
-                    linestyle='--', label=horizontal_label)
+    if y_val is not None:
+        plt.plot(x_data, y_val)
     # Customize the plot (optional)
     plt.xlabel(x_label)
     plt.ylabel(y_label)
     plt.title(title)
     plt.grid(True)
-    plt.legend()
     plt.show()
 
 
@@ -1508,28 +1505,6 @@ def RunAutoEncoder(
     return data_encoder, epoch_loss, best_test, net
 
 
-def compute_empirical_distribution(durations, events):
-    """
-    Compute the empirical survival distribution using the Kaplan-Meier estimator.
-
-    Parameters:
-    - durations: np.array, observed survival times
-    - events: np.array, event occurrence (1 if event occurred, 0 if censored)
-
-    Returns:
-    - time_points: Survival time points
-    - survival_probs: Corresponding survival probabilities
-    """
-    kmf = KaplanMeierFitter()
-    kmf.fit(durations, event_observed=events)
-
-    # Extract survival function
-    time_points = kmf.survival_function_.index.values
-    survival_probs = kmf.survival_function_["KM_estimate"].values
-
-    return time_points, survival_probs
-
-
 def RunDeepSurv(
     net: nn.Module,
     criterion_survival,  # Appropriate loss function for survival
@@ -1551,6 +1526,7 @@ def RunDeepSurv(
     fold_idx=0,
     nfolds=4,
     typeEpoch=None,
+    lambda_wass=0.1,
 ):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     epoch_loss,  train_time = (
@@ -1561,10 +1537,14 @@ def RunDeepSurv(
         epoch_val_loss
     ) = ([])
     best_test = np.inf
+
+    best_net_it = 0
+    best_model = None
     for epoch_idx in range(N_EPOCHS):
 
         model = fds.Custom_CoxPH(net, tt.optim.Adam)
-
+        if (epoch_idx == 0):
+            best_model = model  # in case the network never improve to avoid returning an exception
         x_global = []
         duration_global = []
         event_global = []
@@ -1572,52 +1552,22 @@ def RunDeepSurv(
         running_loss = 0
         net.train()
         for i, batch in enumerate(train_dl):
+            # print(f"Batch {batch}")
             x = batch[0]
             duration = batch[1][:, 1]
             event = batch[1][:, 0]
-
-            # Append to global lists (if needed for later use)
+            # cast x into numpy and append to x_global
             x_global.append(x.cpu().numpy())
             duration_global.append(duration.cpu().numpy())
             event_global.append(event.cpu().numpy())
-
             if torch.cuda.is_available():
                 x = x.cuda()
                 duration = duration.cuda()
                 event = event.cuda()
 
-            # Compute empirical distribution using the global data
-            v = compute_empirical_distribution(
-                duration, event
-            )  # Compute empirical survival distribution
-
-            # Compute baseline hazards (if your model needs this step)
-            model.compute_baseline_hazards(x, [duration, event])
-
-            # Predict survival probabilities for the entire batch
-            print("size of x")
-            print(x.size())
-            print("size of duration")
-            print(duration.size())
-            print("duration")
-            print(duration)
-            print("u")
-            u = model.predict_surv(x)  # Pass the entire batch here
-            print(u)
-            u = u.mean(dim=0)
-            print(u)
-            # Forward pass
-            encoder_out = net(x)
-            print("v")
-            v = torch.tensor(v[1][:-1]).to(device)
-            print(v)
-            print("size of u and v")
-            print(u.size())
-            print(v.size())
-            # Compute loss
-            loss = model.loss(encoder_out, duration, event) + \
-                criterion_survival(u, v)
-
+            encoder_out = net(x)  # Forward pass
+            loss = model.loss(encoder_out, duration,
+                              event, lambda_wass)  # Compute loss
             optimizer.zero_grad()  # Zero gradients
             loss.backward()  # Backward pass
 
@@ -1636,6 +1586,7 @@ def RunDeepSurv(
 
             optimizer.step()  # Update weights
             with torch.no_grad():
+                running_loss += loss.item()
 
                 if epoch_idx == N_EPOCHS - 1:
                     # Collect encoder outputs along with duration and event for analysis
@@ -1648,22 +1599,21 @@ def RunDeepSurv(
                             (encoder_out, duration.view(-1, 1), event.view(-1, 1)), dim=1)
                         data_encoder = torch.cat((data_encoder, tmp), dim=0)
 
-            # Apply projection at last epoch (if required)
-            if epoch_idx == (N_EPOCHS - 1):
-                net_parameters = list(net.parameters())
-                for index, param in enumerate(net_parameters):
-                    is_middle = index == len(net_parameters) / 2 - 1
-                    if not DO_PROJ_MIDDLE or not is_middle:
-                        param.data = Projection(
-                            param.data, TYPE_PROJ, ETA, AXIS=AXIS, ETA_STAR=ETA_STAR, device=device, TOL=TOL
-                        ).to(device)
-
-            running_loss += loss.item()
-
         t2 = time.perf_counter()
 
-        epoch_loss.append(running_loss / train_len)
+        # Apply projection at last epoch (if required)
+        if epoch_idx == (N_EPOCHS - 1):
+            net_parameters = list(net.parameters())
+            for index, param in enumerate(net_parameters):
+                is_middle = index == len(net_parameters) / 2 - 1
+                if not DO_PROJ_MIDDLE or not is_middle:
+                    param.data = Projection(
+                        param.data, TYPE_PROJ, ETA, AXIS=AXIS, ETA_STAR=ETA_STAR, device=device, TOL=TOL
+                    ).to(device)
 
+        epoch_loss.append(running_loss / train_len)
+        print(epoch_idx, epoch_loss[-1])
+        print(f"Epoch {epoch_idx} trained in {t2-t1} seconds")
         # Model Evaluation on Test Data using integrated Brier Score
 
         running_loss_test = 0
@@ -1691,30 +1641,28 @@ def RunDeepSurv(
         time_grid = np.linspace(test_duration.min(),
                                 test_duration.max(), 100)
         running_loss_test = ev.integrated_brier_score(time_grid)
+        if (math.isnan(running_loss_test)):
+            running_loss_test = math.inf
 
         if running_loss_test < best_test:
+            # print("running here ...")
             best_net_it = epoch_idx
             best_test = running_loss_test
             torch.save(net.state_dict(), str(outputPath) + "best_net")
             best_model = model
+        else:
+            pass
 
         epoch_val_loss.append(running_loss_test)
 
-    epoch_loss_proj = None
-    epoch_loss_proj_label = None
-    if not DO_PROJ_MIDDLE:
-        epoch_loss_proj = epoch_loss[-1]
-        epoch_loss = epoch_loss[:-1]
-        epoch_loss_proj_label = "Projection"
-    print(epoch_loss)
-    title = f"MSE vs Epoch DeepSurv ( Training, Seed: {seed} "
+    title = f"MSE vs Epoch ( Training, Seed: {seed} "
     title = title + f"Fold {fold_idx+1} in {nfolds})"
     y_data = epoch_loss
     y_label = "MSE"
     x_data = range(0, len(y_data))
     x_label = "Epoch"
-    plotGraph(y_data, x_data, y_label, x_label, title,
-              epoch_loss_proj, epoch_loss_proj_label)
+
+    plotGraph(y_data, x_data, y_label, x_label, title, epoch_val_loss)
 
     print(f"Best net epoch for {typeEpoch} = ", best_net_it)
 
@@ -1724,7 +1672,7 @@ def RunDeepSurv(
 def training(seed, feature_len, TYPE_ACTIVATION, DEVICE, n_hidden, norm, feature_names,
              GRADIENT_MASK, net_name, LR, criterion_regression, train_dl, train_len,
              gaussianKDE, test_dl, test_len, outputPath, TYPE_PROJ, SEEDS, fold_idx,
-             nfolds, N_EPOCHS, N_EPOCHS_MASKGRAD, DO_PROJ_MIDDLE, ETA, AXIS, TOL):
+             nfolds, N_EPOCHS, N_EPOCHS_MASKGRAD, DO_PROJ_MIDDLE, ETA, AXIS, TOL, lambda_wass):
 
     np.random.seed(seed)
     torch.manual_seed(seed)
@@ -1768,6 +1716,7 @@ def training(seed, feature_len, TYPE_ACTIVATION, DEVICE, n_hidden, norm, feature
         fold_idx,
         nfolds,
         typeEpoch="Adam",
+        lambda_wass=lambda_wass,
     )
 
     weights_interim_enc, _ = fnp.weights_and_sparsity(trained_net, TOL)
@@ -1832,6 +1781,7 @@ def training(seed, feature_len, TYPE_ACTIVATION, DEVICE, n_hidden, norm, feature
             fold_idx=fold_idx,
             nfolds=nfolds,
             typeEpoch="MaskGrad",
+            lambda_wass=lambda_wass,
         )
 
     return data_encoder, net, best_model
@@ -1856,8 +1806,27 @@ def buildNet(feature_len, TYPE_ACTIVATION, net_name, DEVICE, n_hidden, norm):
         net = DNN(feature_len, 1, 0.1, ratio=False).to(DEVICE)  # netBio
 
     if net_name == 'DeepSurv':
-        net = fds.MLP(feature_len, n_hidden, 1, batch_norm=True,
-                      dropout=0.1, output_bias=False).to(DEVICE)
+        # Using ReLU activation
+        if TYPE_ACTIVATION == 'relu':
+            net = fds.MLP(in_features=feature_len, num_nodes=n_hidden,
+                          out_features=1, activation=nn.ReLU).to(DEVICE)
+        if TYPE_ACTIVATION == 'tanh':
+            net = fds.MLP(in_features=feature_len, num_nodes=n_hidden,
+                          out_features=1, activation=nn.Tanh).to(DEVICE)
+        if TYPE_ACTIVATION == 'sigmoid':
+            net = fds.MLP(in_features=feature_len, num_nodes=n_hidden,
+                          out_features=1, activation=nn.Sigmoid).to(DEVICE)
+        if TYPE_ACTIVATION == 'silu':
+            net = fds.MLP(in_features=feature_len, num_nodes=n_hidden,
+                          out_features=1, activation=nn.SiLU).to(DEVICE)
+        if TYPE_ACTIVATION == 'selu':
+            net = fds.MLP(in_features=feature_len, num_nodes=n_hidden,
+                          out_features=1, activation=nn.SELU).to(DEVICE)
+        else:
+            print("Activation function not supported , using ReLU")
+            net = fds.MLP(in_features=feature_len, num_nodes=n_hidden,
+                          out_features=1, activation=nn.ReLU).to(DEVICE)
+        print(net)
     return net
 
 
@@ -2120,12 +2089,12 @@ def packClassResult(accuracy_train, accuracy_test, fold_nb, label_name):
     """ Transform the accuracy of each class in different fold to DataFrame
     Attributes:
         accuracy_train: List, class_train in different fold
-        accuracy_test: List, class_test in different fold 
-        fold_nb: number of fold  
+        accuracy_test: List, class_test in different fold
+        fold_nb: number of fold
         label_name: name of different classes(Ex: Class 1, Class 2)
     Return:
-        df_accTrain: dataframe, training accuracy per Class in different fold 
-        df_acctest: dataframe, testing accuracy per Class in different fold     
+        df_accTrain: dataframe, training accuracy per Class in different fold
+        df_acctest: dataframe, testing accuracy per Class in different fold
     """
     columns = ["Global"] + ["Class " + str(x) for x in label_name]
     ind_df = ["Fold " + str(x + 1) for x in range(fold_nb)]
@@ -2139,10 +2108,13 @@ def packClassResult(accuracy_train, accuracy_test, fold_nb, label_name):
     return df_accTrain, df_acctest
 
 
-def packMetric(data, fold_nb):
-    columns = (
-        ["MSE"] + ["RMSE"] + ["MAE"]+["Negative gap"] + ["Positive gap"]+["WD"]
-    )
+def packMetric(data, fold_nb, fold_col=None):
+    columns = fold_col
+    if (fold_col == None):
+        columns = (
+            ["MSE"] + ["RMSE"] + ["MAE"] +
+            ["Negative gap"] + ["Positive gap"]+["WD"]
+        )
     ind_df = ["Fold " + str(x + 1) for x in range(fold_nb)]
 
     df = pd.DataFrame(data, index=ind_df, columns=columns)
@@ -2152,19 +2124,19 @@ def packMetric(data, fold_nb):
     return df
 
 
-def packMetricsResult(data_train, data_test, fold_nb):
+def packMetricsResult(data_train, data_test, fold_nb, fold_col=None):
     """ Transform the accuracy of each class in different fold to DataFrame
     Attributes:
         accuracy_train: List, class_train in different fold
-        accuracy_test: List, class_test in different fold 
-        fold_nb: number of fold  
+        accuracy_test: List, class_test in different fold
+        fold_nb: number of fold
         label_name: name of different classes(Ex: Class 1， Class 2)
     Return:
-        df_accTrain: dataframe, training accuracy per Class in different fold 
-        df_acctest: dataframe, testing accuracy per Class in different fold     
+        df_accTrain: dataframe, training accuracy per Class in different fold
+        df_acctest: dataframe, testing accuracy per Class in different fold
     """
-    df_metricsTrain = packMetric(data_train, fold_nb)
-    df_metricsTest = packMetric(data_test, fold_nb)
+    df_metricsTrain = packMetric(data_train, fold_nb, fold_col)
+    df_metricsTest = packMetric(data_test, fold_nb, fold_col)
 
     return df_metricsTrain, df_metricsTest
 
@@ -2733,15 +2705,11 @@ def ReadDataCV_surv(
     to_drop = []
     for i, name in enumerate(data_pd["Name"]):
         print(name, i)
-        if name in ["Exitus", "Exitus Date", "Seroteca-1", "Seroteca-2", "Seroteca-3", "Seroteca-1 Date", "Seroteca-2 Date", "Seroteca-3 Date"]:
+        if name in ["Exitus", "Exitus Date", "Seroteca-1", "Seroteca-2", "Seroteca-3", "Seroteca-1 Date", "Seroteca-2 Date", "Seroteca-3 Date", "Gender_H"]:
             to_drop.append(i)
     data_pd = data_pd.drop(to_drop)
 
     X = (data_pd.iloc[2:, 1:].values.astype(float)).T
-    # apply StandardScaler to X
-    scaler = StandardScaler()
-    scaler.fit(X)
-    X = scaler.transform(X)
     Y = data_pd.iloc[:2, 1:].values.astype(float).T
 
     col = data_pd.columns.to_list()
@@ -2766,9 +2734,15 @@ def ReadDataCV_surv(
         X_train = np.log(abs(X_train + 1))  # Transformation
         X_test = np.log(abs(X_test + 1))  # Transformation
 
-    X_train = X_train - np.mean(X_train, axis=0)
-    X_test = X_test - np.mean(X_test, axis=0)
     if doScale:
+
+        # apply StandardScaler to X
+        scaler = StandardScaler()
+        scaler.fit(X_train)
+        X_train = scaler.transform(X_train)
+        X_test = scaler.transform(X_test)
+        X_train = X_train - np.mean(X_train, axis=0)
+        X_test = X_test - np.mean(X_test, axis=0)
         X_train = scale(X_train, axis=0)  # Standardization along rows
         X_test = scale(X_test, axis=0)  # Standardization along rows
 
@@ -2786,6 +2760,3 @@ def ReadDataCV_surv(
     gaussianKDETest = sc.gaussian_kde(y_test, bw_method=0.2)
     return X_train, X_test, y_train, y_test, feature_name, label_name_train, label_name_test, patient_name, gaussianKDETrain, gaussianKDETest, 1
 
-
-if __name__ == "__main__":
-    print("This is just a file containing functions, so nothing happened.")
